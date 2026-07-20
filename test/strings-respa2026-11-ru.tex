@@ -1,0 +1,45 @@
+% ============================================================
+%  strings-respa2026-11-ru.tex
+%
+%  Hand-written stand-in for what build.py will eventually
+%  generate automatically for a given (competition, year, grade,
+%  language, tour) combination, by resolving:
+%    config/competitions.yaml  -> respa
+%    test/manifest.yaml        -> this year's dates + problem list
+%
+%  \input this AFTER \documentclass (so \DeclareKeys/\ProcessKeyOptions
+%  have already set \OlympGrade etc.) and BEFORE \begin{document}.
+%
+%  Every key here is a \csname OlympStr@<key>@ru\endcsname, matching
+%  what \OlympString{<key>} looks up for language=ru.
+% ============================================================
+
+\newcommand{\SetOlympString}[2]%
+{%
+    \expandafter\def\csname OlympStr@#1@\OlympLang\endcsname{#2}%
+}
+
+% ---- from olympiad.cls itself (Parts 7-12) ----
+\SetOlympString{problem}{Задача}
+\SetOlympString{subproblem}{Задача~\theproblemnum} % note trailing space; #1 (e.g. "А") is appended directly
+\SetOlympString{hints}{Подсказки}
+\SetOlympString{consts}{Физические константы}
+\SetOlympString{solutionsheader}{РЕШЕНИЯ}
+\SetOlympString{figlabel}{Рис.~\theproblemnum.\thefigcounter.} % #1=caption's prefix (unused), #2=figcounter value; optional, guarded by \@ifundefined in the cls
+
+% ---- from olympiad-layout.sty (Part 7 — used on every normal page) ----
+\SetOlympString{name}{Республиканская олимпиада}                 % competitions.yaml: name.short.ru
+\SetOlympString{tourname}{Теоретический тур}                     % competitions.yaml: tours.theory.name.ru
+\SetOlympString{page_abbrev}{с.}
+\SetOlympString{duration}{Продолжительность тура --- 5 часов}    % competitions.yaml: tours.theory.duration_hours = 5
+\SetOlympString{organizer}{РЕСПУБЛИКАНСКИЙ НАУЧНО-ПРАКТИЧЕСКИЙ ЦЕНТР «ДАРЫН»} % competitions.yaml: organizer.uppercase.ru
+\SetOlympString{firstpagesubtitle}{Республиканская олимпиада. Теоретический тур, 11 класс. г.~Астана, \OlympYear{}}
+
+% ---- from title_ru.tex ----
+\SetOlympString{name_full}{Республиканская олимпиада по предмету Физика} % competitions.yaml: name.full.ru
+\SetOlympString{stage}{Заключительный этап}                              % competitions.yaml: name.stage.ru
+\SetOlympString{eventdates}{20--25 марта \OlympYear{} года, г.~Астана}           % manifest.yaml: dates.opening-ceremony (20) .. dates.closing-ceremony (25), month 3, year 2026
+
+% ---- from templates/instructions_students/theory_ru.tex ----
+\SetOlympString{touronedate}{21 марта \OlympYear{} года}   % manifest.yaml: dates.first-tour (day 21, month 3), year from dates.year
+\SetOlympString{problemcount}{3}                   % manifest.yaml: grades.11.theory has 3 entries

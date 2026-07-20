@@ -1,0 +1,111 @@
+\NeedsTeXFormat{LaTeX2e}%
+\ProvidesPackage{olympiad-units-base}%
+\RequirePackage{siunitx}%
+\sisetup{
+  unit-mode        = text,
+  per-mode           = power,
+  inter-unit-product = \cdot,
+  %per-mode         = symbol,        % default: Дж/(моль·К) style
+  fraction-command = \tfrac,        % compact fractions in inline math
+  exponent-product = \cdot,         % 2·10⁴
+  product-symbol   = \times,        % 2 x 3 x 4, etc.
+}
+
+% ==============================================================================
+% COMPOUND SHORTHANDS
+% ==============================================================================
+
+% --- Kinematics ---
+\DeclareSIUnit{\mps}{\metre\per\second}                             % м/с
+\DeclareSIUnit{\mpsq}{\metre\per\second\squared}                    % м/с²
+\DeclareSIUnit{\radps}{\radian\per\second}                          % рад/с
+\DeclareSIUnit{\radpsq}{\radian\per\second\squared}                 % рад/с² (Angular acceleration)
+\DeclareSIUnit{\kmph}{\kilo\metre\per\hour}                         % км/ч (Standard speed alternative)
+
+% --- Mechanics ---
+\DeclareSIUnit{\N}{\newton}
+\DeclareSIUnit{\kgm}{\kilogram\per\metre\cubed}                     % кг/м³ (Density)
+\DeclareSIUnit{\gcm}{\g\per\cm\cubed}                               % г/см³ (Density)
+\DeclareSIUnit{\Npm}{\newton\per\metre}                             % Н/м
+\DeclareSIUnit{\Nm}{\newton\metre}                                  % Н·м (Torque / Work)
+\DeclareSIUnit{\Ggrav}{\newton\metre\squared\per\kilogram\squared}            % Н·м²/кг² (for G)
+
+% --- Thermodynamics ---
+\DeclareSIUnit[quantity-product = {}]{\celsius}{\degreeCelsius}
+\DeclareSIUnit{\K}{\kelvin}                    
+\DeclareSIUnit{\gmol}{\g\per\mole}                                  % г/моль
+\DeclareSIUnit{\kgmol}{\kilogram\per\mole}                          % кг/моль
+\DeclareSIUnit{\Jkg}{\joule\per\kilogram}                           % Дж/кг
+\DeclareSIUnit{\kJkg}{\kilo\joule\per\kilogram}                     % кДж/кг
+\DeclareSIUnit{\Jg}{\joule\per\g}                                   % Дж/г
+\DeclareSIUnit{\JkgK}{\joule\per\kilogram\per\kelvin}               % Дж/(кг·К) (latent heat cap)
+\DeclareSIUnit{\JmolK}{\joule\per\mole\per\kelvin}                  % Дж/(моль·К) (molar heat cap)
+\DeclareSIUnit{\WmK}{\watt\per\metre\per\kelvin}                    % Вт/(м·К) (heat conductivity)
+
+% --- Fluid Dynamics ---
+\DeclareSIUnit{\Pas}{\pascal\second}                                % Па·с 
+\DeclareSIUnit{\kgps}{\kilogram\per\second}                         % кг/с
+
+% --- Electrodynamics ---
+\DeclareSIUnit{\Vm}{\volt\per\metre}                                % В/м
+\DeclareSIUnit{\Hm}{\henry\per\metre}                               % Гн/м (for \mu_0)
+\DeclareSIUnit{\Fm}{\farad\per\metre}                               % Ф/м (for \varepsilon_0)
+\DeclareSIUnit{\Cm}{\coulomb\per\metre}                             % Кл/м (Linear charge density)
+\DeclareSIUnit{\Cmq}{\coulomb\per\metre\squared}                    % Кл/м² (Surface charge density)
+\DeclareSIUnit{\Cmcu}{\coulomb\per\metre\cubed}                     % Кл/м³ (Volume charge density)
+\DeclareSIUnit{\Ohmm}{\ohm\metre}                                   % Ом·м
+\DeclareSIUnit{\Ohmmm}{\ohm\milli\metre\squared\per\metre}          % Ом·мм²/м
+
+% --- Optics, Quantum & Modern Physics ---
+\DeclareSIUnit{\Wm}{\watt\per\metre\squared}                        % Вт/м²
+\DeclareSIUnit{\Js}{\joule\second}                                  % Дж·с (Planck's constant scale)
+\DeclareSIUnit{\amu}{\atomicmassunit}
+
+% ------------------------------------------------------------
+% Override \qty for per-mode switching
+% Use \qtyp{val}{unit} when negative powers are preferable,
+% e.g. \qtyp{5.67e-8}{\Vt\per\metre\squared\per\kelvin\tothe{4}}
+% gives  5.67·10⁻⁸ Вт·м⁻²·К⁻⁴  instead of a nested fraction.
+% ------------------------------------------------------------
+\NewDocumentCommand{\qtyp}{ m m }{%
+  \qty[per-mode=power]{#1}{#2}%
+}
+
+% =========================================================================
+% LEGACY COMMAND: \pu
+% =========================================================================
+% For those who are used to \pu commands (was moderately used in 2024-2026)
+
+% The only advantage over siunitx is the powers:
+%     \pu:    \pu{W/(m2*K-4)}
+%     \unit:  \unit{\W\per\m\squared\per\K\tothe{4}}
+% \pu was parsing a plain string.
+% siunitx deliberately doesn't do that because string parsing is fragile.
+% The tradeoff is verbosity for robustness.
+
+\RequirePackage{xstring}
+\NewDocumentCommand{\pu}{m}{%
+    \saveexpandmode\noexpandarg
+    \def\tempstring{#1}%
+    \puStrSubstitute{\tempstring}{*}{\ensuremath{{}\cdot{}}}[\tempstring]%
+    \puStrSubstitute{\tempstring}{-1}{\ensuremath{^{-1}}}[\tempstring]% Negative numbers should be first
+    \puStrSubstitute{\tempstring}{-2}{\ensuremath{^{-2}}}[\tempstring]% I have not yet found the way to properly address all the possible digits in one line
+    \puStrSubstitute{\tempstring}{-3}{\ensuremath{^{-3}}}[\tempstring]%
+    \puStrSubstitute{\tempstring}{-4}{\ensuremath{^{-4}}}[\tempstring]%
+    \puStrSubstitute{\tempstring}{1}{\ensuremath{^1}}[\tempstring]%
+    \puStrSubstitute{\tempstring}{2}{\ensuremath{^2}}[\tempstring]%
+    \puStrSubstitute{\tempstring}{3}{\ensuremath{^3}}[\tempstring]%
+    \puStrSubstitute{\tempstring}{4}{\ensuremath{^4}}[\tempstring]%
+    \textrm{ \tempstring}
+    \restoreexpandmode
+}
+\newcommand*{\puStrSubstitute}{% With this one, there are no possible recursions that could appear
+  \expandafter\StrSubstitute\expandafter
+}
+% Some example results:
+% e=\num{9.11e-31}\pu{A*s}
+% R=8.314\pu{J/(mole*K)}
+% \sigma=\num{5.67e-8}\pu{W*m-2*K-2}
+% p_a=10^5\pu{N/m2}
+
+\endinput

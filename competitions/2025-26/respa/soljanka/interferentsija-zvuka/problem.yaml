@@ -1,0 +1,23 @@
+meta:
+  title:
+    ru: Интерференция звука
+  points_total: 3.0
+  slug: interferentsija-zvuka
+  source_file: respa2026_11_1.tex
+  language_extracted: ru
+parts:
+- blocks:
+  - prose:
+      ru: "Две бесконечные жесткие плоскости (стены) пересекаются под прямым углом.\
+        \ Из бесконечности падает плоская звуковая волна, волновой вектор которой\
+        \ направлен точно по биссектрисе угла между плоскостями. Амплитуда скорости\
+        \ молекул воздуха в падающей волне равна $v$, а длина волны составляет $\\\
+        lambda$. Стены идеально отражающие (отражения происходят без потерь энергии);\
+        \ дифракционными эффектами на расстоянии порядка $\\lambda$ пренебречь.\n\n\
+        \\setcounter{taskstar}{0}\n\\begin{list}{\\textbf{(\\alph{taskstar})}\\ }{\n\
+        \    \\usecounter{taskstar}\n    \\setlength{\\leftmargin}{18pt}\n      \\\
+        setlength{\\labelwidth}{0pt}\n      \\setlength{\\labelsep}{0pt}\n      \\\
+        setlength{\\itemsep}{6pt}\n      \\setlength{\\topsep}{6pt}}\n    \\item Найдите\
+        \ максимально возможную скорость движения воздуха в данной системе.\n    \\\
+        item В каких точках пространства достигается эта максимальная скорость?\n\\\
+        end{list}"

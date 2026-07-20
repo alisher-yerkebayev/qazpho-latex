@@ -1,0 +1,222 @@
+\NeedsTeXFormat{LaTeX2e}%
+\ProvidesPackage{olympiad-units-gost}%
+\RequirePackage{olympiad-units-base}%
+\AddToHook{begindocument}{%
+% without it, babel will not activate properly until the \begin{document}
+% ------------------------------------------------------------
+% Unit names (only those that differ from SI symbols)
+% The following tables are redefined from siunitx documentation
+% ------------------------------------------------------------
+% ======================
+% TABLE 1: SI Base Units
+% ======================
+\DeclareSIUnit{\ampere}{\text{А}}
+\DeclareSIUnit{\candela}{\text{кд}}
+\DeclareSIUnit{\kelvin}{\text{К}}
+\DeclareSIUnit{\kilogram}{\text{кг}}
+\DeclareSIUnit{\metre}{\text{м}}
+\DeclareSIUnit{\mole}{\text{моль}}
+\DeclareSIUnit{\second}{\text{с}}
+%
+% ============================================
+% TABLE 2: SI Derived Units with Special Names
+% ============================================
+\DeclareSIUnit{\becquerel}{\text{Бк}}
+%\degreeCelsius remains standard universally
+\DeclareSIUnit{\coulomb}{\text{Кл}}
+\DeclareSIUnit{\farad}{\text{Ф}}
+\DeclareSIUnit{\gray}{\text{Гр}}
+\DeclareSIUnit{\henry}{\text{Гн}}
+\DeclareSIUnit{\hertz}{\text{Гц}}
+\DeclareSIUnit{\joule}{\text{Дж}}
+\DeclareSIUnit{\lumen}{\text{лм}}
+\DeclareSIUnit{\lux}{\text{лк}}
+\DeclareSIUnit{\newton}{\text{Н}}
+\DeclareSIUnit{\ohm}{\text{Ом}}
+\DeclareSIUnit{\pascal}{\text{Па}}
+\DeclareSIUnit{\radian}{\text{рад}}
+\DeclareSIUnit{\siemens}{\text{См}}
+\DeclareSIUnit{\sievert}{\text{Зв}}
+\DeclareSIUnit{\steradian}{\text{ср}}
+\DeclareSIUnit{\tesla}{\text{Тл}}
+\DeclareSIUnit{\volt}{\text{В}}
+\DeclareSIUnit{\watt}{\text{Вт}}
+\DeclareSIUnit{\weber}{\text{Вб}}
+
+% ==================================================
+% TABLE 3: Non-SI Units Accepted for Use with the SI
+% ==================================================
+\DeclareSIUnit{\day}{\text{сут}} % "сутки" 
+\DeclareSIUnit{\hour}{\text{ч}}
+\DeclareSIUnit{\minute}{\text{мин}}
+\DeclareSIUnit{\litre}{\text{л}}
+\DeclareSIUnit{\tonne}{\text{т}}
+\DeclareSIUnit{\astronomicalunit}{\text{а.\,е.}}
+\DeclareSIUnit{\electronvolt}{\text{эВ}}
+\DeclareSIUnit{\dalton}{\text{Да}}
+%\arcminute remains standard universally
+%\arcsecond remains standard universally
+%\degree remains standard universally
+% ==============================================================================
+% TABLE 4: SI Prefixes (Translated explicitly to Cyrillic prefixes)
+% ==============================================================================
+\DeclareSIPrefix{\quecto}{\text{кв}}{-30}
+\DeclareSIPrefix{\ronto}{\text{рн}}{-27}
+\DeclareSIPrefix{\yocto}{\text{ио}}{-24}
+\DeclareSIPrefix{\zepto}{\text{з}}{-21}
+\DeclareSIPrefix{\atto}{\text{а}}{-18}
+\DeclareSIPrefix{\femto}{\text{ф}}{-15}
+\DeclareSIPrefix{\pico}{\text{п}}{-12}
+\DeclareSIPrefix{\nano}{\text{н}}{-9}
+\DeclareSIPrefix{\micro}{\text{мк}}{-6}
+\DeclareSIPrefix{\milli}{\text{м}}{-3}
+\DeclareSIPrefix{\centi}{\text{с}}{-2}
+\DeclareSIPrefix{\deci}{\text{д}}{-1}
+\DeclareSIPrefix{\deca}{\text{да}}{1}
+\DeclareSIPrefix{\hecto}{\text{г}}{2}
+\DeclareSIPrefix{\kilo}{\text{к}}{3}
+\DeclareSIPrefix{\mega}{\text{М}}{6}
+\DeclareSIPrefix{\giga}{\text{Г}}{9}
+\DeclareSIPrefix{\tera}{\text{Т}}{12}
+\DeclareSIPrefix{\peta}{\text{П}}{15}
+\DeclareSIPrefix{\exa}{\text{Э}}{18}
+\DeclareSIPrefix{\zetta}{\text{З}}{21}
+\DeclareSIPrefix{\yotta}{\text{И}}{24}
+\DeclareSIPrefix{\ronna}{\text{Р}}{27}
+\DeclareSIPrefix{\quetta}{\text{Кв}}{30}
+
+% =================================================
+% TABLE 5: Unit Abbreviations Translated to Russian
+% =================================================
+
+% --- Mass ---
+\DeclareSIUnit{\fg}{\text{фг}}
+\DeclareSIUnit{\pg}{\text{пг}}
+\DeclareSIUnit{\ng}{\text{нг}}
+\DeclareSIUnit{\ug}{\text{мкг}}
+\DeclareSIUnit{\mg}{\text{мг}}
+\DeclareSIUnit{\g}{\text{г}}
+\DeclareSIUnit{\kg}{\text{кг}}
+
+% --- Length ---
+\DeclareSIUnit{\pm}{\text{пм}}
+\DeclareSIUnit{\nm}{\text{нм}}
+\DeclareSIUnit{\um}{\text{мкм}}
+\DeclareSIUnit{\mm}{\text{мм}}
+\DeclareSIUnit{\cm}{\text{см}}
+\DeclareSIUnit{\dm}{\text{дм}}
+\DeclareSIUnit{\m}{\text{м}}
+\DeclareSIUnit{\km}{\text{км}}
+
+% --- Time ---
+\DeclareSIUnit{\as}{\text{ас}}
+\DeclareSIUnit{\fs}{\text{фс}}
+\DeclareSIUnit{\ps}{\text{пс}}
+\DeclareSIUnit{\ns}{\text{нс}}
+\DeclareSIUnit{\us}{\text{мкс}}
+\DeclareSIUnit{\ms}{\text{мс}}
+\DeclareSIUnit{\s}{\text{с}}
+
+% --- Frequency ---
+\DeclareSIUnit{\fHz}{\text{фГц}}
+\DeclareSIUnit{\pHz}{\text{пГц}}
+\DeclareSIUnit{\nHz}{\text{нГц}}
+\DeclareSIUnit{\uHz}{\text{мкГц}}
+\DeclareSIUnit{\mHz}{\text{мГц}}
+\DeclareSIUnit{\Hz}{\text{Гц}}
+\DeclareSIUnit{\kHz}{\text{кГц}}
+\DeclareSIUnit{\MHz}{\text{МГц}}
+\DeclareSIUnit{\GHz}{\text{ГГц}}
+\DeclareSIUnit{\THz}{\text{ТГц}}
+
+% --- Force ---
+\DeclareSIUnit{\mN}{\text{мН}}
+\DeclareSIUnit{\N}{\text{Н}}
+\DeclareSIUnit{\kN}{\text{кН}}
+\DeclareSIUnit{\MN}{\text{МН}}
+
+% --- Pressure ---
+\DeclareSIUnit{\Pa}{\text{Па}}
+\DeclareSIUnit{\kPa}{\text{кПа}}
+\DeclareSIUnit{\MPa}{\text{МПа}}
+\DeclareSIUnit{\GPa}{\text{ГПа}}
+
+% --- Resistance ---
+\DeclareSIUnit{\mohm}{\text{мОм}}
+\DeclareSIUnit{\kOhm}{\text{кОм}}
+\DeclareSIUnit{\MOhm}{\text{МОм}}
+
+% --- Power & Electric ---
+\DeclareSIUnit{\uV}{\text{мкВ}}
+\DeclareSIUnit{\mV}{\text{мВ}}
+\DeclareSIUnit{\V}{\text{В}}
+\DeclareSIUnit{\kV}{\text{кВ}}
+
+\DeclareSIUnit{\uW}{\text{мкВт}}
+\DeclareSIUnit{\mW}{\text{мВт}}
+\DeclareSIUnit{\W}{\text{Вт}}
+\DeclareSIUnit{\kW}{\text{кВт}}
+\DeclareSIUnit{\MW}{\text{МВт}}
+\DeclareSIUnit{\GW}{\text{ГВт}}
+
+\DeclareSIUnit{\fA}{\text{фА}}
+\DeclareSIUnit{\pA}{\text{пА}}
+\DeclareSIUnit{\nA}{\text{нА}}
+\DeclareSIUnit{\uA}{\text{мкА}}
+\DeclareSIUnit{\mA}{\text{мА}}
+\DeclareSIUnit{\A}{\text{А}}
+\DeclareSIUnit{\kA}{\text{кА}}
+
+\DeclareSIUnit{\pF}{\text{пФ}}
+\DeclareSIUnit{\nF}{\text{нФ}}
+\DeclareSIUnit{\uF}{\text{мкФ}}
+\DeclareSIUnit{\mF}{\text{мФ}}
+\DeclareSIUnit{\F}{\text{Ф}}
+\DeclareSIUnit{\kF}{\text{кФ}}
+
+% --- Henry (Генри) ---
+\DeclareSIUnit{\nH}{\text{нГн}}
+\DeclareSIUnit{\uH}{\text{мкГн}}
+\DeclareSIUnit{\mH}{\text{мГн}}
+\DeclareSIUnit{\H}{\text{Гн}}
+\DeclareSIUnit{\kH}{\text{кГн}}
+
+% --- Tesla (Тесла) ---
+\DeclareSIUnit{\nT}{\text{нТл}}
+\DeclareSIUnit{\uT}{\text{мкТл}}
+\DeclareSIUnit{\mT}{\text{мТл}}
+\DeclareSIUnit{\T}{\text{Тл}}
+\DeclareSIUnit{\kT}{\text{кТл}}
+
+% --- Amount of Substance & Thermodynamic ---
+\DeclareSIUnit{\mol}{\text{моль}}
+\DeclareSIUnit{\kmol}{\text{кмоль}}
+
+% --- Joule (Джоуль) ---
+\DeclareSIUnit{\uJ}{\text{мкДж}}
+\DeclareSIUnit{\mJ}{\text{мДж}}
+\DeclareSIUnit{\J}{\text{Дж}}
+\DeclareSIUnit{\kJ}{\text{кДж}}
+\DeclareSIUnit{\MJ}{\text{МДж}}
+\DeclareSIUnit{\GJ}{\text{ГДж}}
+
+% --- Coulomb (Кулон) ---
+\DeclareSIUnit{\nC}{\text{нКл}}
+\DeclareSIUnit{\uC}{\text{мкКл}}
+\DeclareSIUnit{\mC}{\text{мКл}}
+\DeclareSIUnit{\C}{\text{Кл}}
+\DeclareSIUnit{\kC}{\text{кКл}}
+
+% --- electron-volt ---
+\DeclareSIUnit{\meV}{\text{мэВ}}
+\DeclareSIUnit{\eV}{\text{эВ}}
+\DeclareSIUnit{\keV}{\text{кэВ}}
+\DeclareSIUnit{\MeV}{\text{МэВ}}
+\DeclareSIUnit{\GeV}{\text{ГэВ}}
+\DeclareSIUnit{\TeV}{\text{ТэВ}}
+
+% --- Non-SI ---
+\DeclareSIUnit{\rpm}{\text{об/мин}}       % revolutions per minute
+}
+
+\endinput

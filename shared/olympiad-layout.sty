@@ -1,0 +1,283 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{olympiad-layout}[2027/01/01 v1.2 Layout layer]
+
+% ============================================================
+%  olympiad-layout.sty
+%  Visual design layer for olympiad documents.
+%
+%  Requires: olympiad.cls (loaded first)
+%
+%  CHANGELOG v1.1 -> v1.2
+%    - \OlympFirstPage introduced. \enlargethispage / \textheight
+%      changes placed inside \fancypagestyle{firstpage}{...} were
+%      silent no-ops: that code only runs at \shipout (output
+%      routine) time, well after the page-breaking decision (which
+%      depends on \textheight) has already been made. \OlympFirstPage
+%      calls \enlargethispage at the correct time -- in the main
+%      vertical list, before the page breaks -- then sets the page
+%      style. Use it instead of \thispagestyle{firstpage} directly
+%      in title_ru.tex / title_kz.tex / etc.
+% ============================================================
+
+% ============================================================
+% PART 1 — PAGE GEOMETRY
+% ============================================================
+
+\RequirePackage{geometry}
+\geometry{
+  a4paper,
+  left        = 12mm,
+  right       = 12mm,
+  top         = 12mm,
+  bottom      = 15mm,
+  headheight  = 15pt,
+  headsep     = 12pt,
+  footskip    = 15pt,
+  includehead,
+}
+
+
+% ============================================================
+% PART 2 — TYPOGRAPHY
+% ============================================================
+
+\setlength{\parindent}{18pt}
+\setlength{\parskip}{0pt}
+\setlength{\intextsep}{0pt}      % no extra space around floats
+
+
+% ============================================================
+% PART 3 — PACKAGE LOADING ORDER
+% ============================================================
+% siunitx must be loaded before tabularx/array so it can claim
+% the S column type without triggering the "overwritten" warning.
+% NOTE: olympiad.cls already loads siunitx; this second
+% \RequirePackage{siunitx} is a harmless no-op (siunitx tracks that
+% it's already loaded and skips re-running its own setup code).
+
+\RequirePackage{siunitx}         % loaded first — owns the S column
+\RequirePackage{tabularx}
+\RequirePackage{array}
+\RequirePackage{paracol} % Required for simultaneous parallel columns
+\RequirePackage{multirow}
+\RequirePackage{multicol}
+\RequirePackage{makecell}
+\RequirePackage{cellspace}
+\setcellgapes{1pt}
+\setlength\cellspacetoplimit{1pt}
+\setlength\cellspacebottomlimit{1pt}
+\setlength{\extrarowheight}{2pt}
+
+\RequirePackage{enumitem}
+\RequirePackage{wrapfig}
+\RequirePackage{float}
+\restylefloat{figure}
+\RequirePackage{graphicx}
+\RequirePackage{xcolor}
+% hyperref last among layout packages
+\RequirePackage[colorlinks=true, linkcolor=., citecolor=black, final]{hyperref}
+\RequirePackage{lastpage}
+
+\RequirePackage{tikz}
+\RequirePackage{circuitikz}
+\RequirePackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+\RequirePackage{pdflscape}
+\RequirePackage{ltablex}
+
+
+% ============================================================
+% PART 4 — LIST CONFIGURATION
+% ============================================================
+
+\setlist[itemize]{topsep=0pt, noitemsep}
+\setlist[itemize,1]{label={\tiny\textbullet}}
+\setlist[enumerate]{topsep=0pt, leftmargin=38pt, noitemsep}
+\setlist[enumerate,1]{label=\arabic*)}
+
+\AtBeginEnvironment{task}{%
+  \setlength{\itemsep}{6pt}%
+  \setlength{\topsep}{6pt}%
+}
+
+
+% ============================================================
+% PART 5 — CAPTION TYPOGRAPHY
+% ============================================================
+
+\captionsetup[figure]{
+  font       = {footnotesize, it},
+  labelfont  = {footnotesize, it},
+}
+
+
+% ============================================================
+% PART 6 — PROBLEM AND SOLUTION HEADING TYPOGRAPHY
+% ============================================================
+
+\renewcommand{\OlympProblemHeading}[1]{%
+  \centerline{\large\textbf{#1}}%
+}
+
+\renewcommand{\OlympSolutionHeading}[1]{%
+  \centerline{\large\textbf{#1}}%
+}
+
+\renewcommand{\part}[1]{%
+    \vspace{6pt}
+    \centerline{\textbf{#1}}
+}
+
+
+% ============================================================
+% PART 7 — HEADERS AND FOOTERS
+% ============================================================
+
+\RequirePackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+
+% Normal pages — left header
+\fancyhead[L]{%
+  \textbf{%
+    \ifOlympBoth
+      \OlympStringBoth{name}~/~\OlympStringBoth{tourname}%
+    \else
+      \OlympString{name}~\OlympYear/\OlympString{tourname}%
+    \fi
+  }%
+}
+
+% Normal pages — right header (page n/N)
+\fancyhead[R]{%
+  \textbf{%
+    \ifOlympBoth
+      \OlympStringBoth{page_abbrev}~\thepage/\pageref{LastPage}%
+    \else
+      \OlympString{page_abbrev}~\thepage/\pageref{LastPage}%
+    \fi
+  }%
+}
+
+% Normal pages — left footer (duration)
+\fancyfoot[L]{%
+  \textbf{%
+    \ifOlympBoth
+      \csname OlympStr@duration@kz\endcsname
+      \hfill
+      \csname OlympStr@duration@ru\endcsname
+    \else
+      \OlympString{duration}%
+    \fi
+  }%
+}
+
+% \OlympFirstPage — use this instead of \thispagestyle{firstpage}
+% directly, in title_ru.tex and any other language variant.
+%
+% \enlargethispage must run in the main vertical list, BEFORE the
+% page breaks. Code inside \fancypagestyle{...}{...} only executes
+% later, during the output routine / \shipout -- by then the page's
+% content has already been cut to size using the OLD \textheight, so
+% \enlargethispage or \addtolength{\textheight}{...} placed there is
+% silently too late to have any effect. \addtolength{\headsep}{...}
+% is fine to keep inside \fancypagestyle, since header/footer
+% positioning genuinely is a shipout-time concern.
+%
+% Both adjustments are tied to \OlympFirstPageExtra so the amount
+% "stolen" from the page and the amount added to \headsep can never
+% drift out of sync.
+\newlength{\OlympFirstPageExtra}
+\setlength{\OlympFirstPageExtra}{6mm}
+
+\newcommand{\OlympFirstPage}{%
+  %\enlargethispage{\OlympFirstPageExtra}%
+  \thispagestyle{firstpage}%
+  \begin{tabular}[c]{@{}c@{}}
+      \textbf{\underline{\OlympString{organizer}}} \\[2pt]
+      \textbf{\underline{\OlympString{firstpagesubtitle}}}\\
+  \end{tabular}%
+  \vspace{6pt}
+}
+
+\fancypagestyle{firstpage}{%
+  \fancyhf{}%
+  \addtolength{\headsep}{-\OlympFirstPageExtra}%
+  %\addtolength{\topmargin}{-\OlympFirstPageExtra}%
+  \fancyhead[C]{}%
+  \renewcommand{\headrulewidth}{0pt}%
+  \fancyfoot[L]{%
+    \textbf{%
+      \ifOlympBoth
+        \csname OlympStr@duration@kz\endcsname
+        \hfill
+        \csname OlympStr@duration@ru\endcsname
+      \else
+        \OlympString{duration}%
+      \fi
+    }%
+  }%
+}
+
+
+% ============================================================
+% PART 8 — FIGURE COMMANDS
+% Known issues:
+%   - They don't support multiline PDF-formatted figures with .IPE metadata
+% ============================================================
+
+\NewDocumentCommand{\pic}{ m m m m m o }{%
+  \begin{wrapfigure}[#1]{#2}{#4\linewidth}
+    \centering
+    \vspace{#3}%
+    \includegraphics[width=\linewidth]{#5}%
+    \IfValueT{#6}{%
+      \vspace{-6pt}%
+      \refstepcounter{figcounter}%
+      \expanded{\noexpand\label{fig:\theproblemnum-\thefigcounter}}%
+      \captionsetup{width=\linewidth}%
+      \caption{\footnotesize\textit{#6}}%
+    }%
+  \end{wrapfigure}%
+}
+
+\NewDocumentCommand{\cpic}{ m m o }{%
+  \begin{center}
+    \vspace{6pt}%
+    \includegraphics[width=#1\linewidth]{#2}%
+    \IfValueT{#3}{%
+      \vspace{-6pt}%
+      \refstepcounter{figcounter}%
+      \expanded{\noexpand\label{fig:\theproblemnum-\thefigcounter}}%
+      \captionsetup{width=\linewidth, hypcap=false}%
+      \captionof{figure}{\footnotesize\textit{#3}}%
+    }%
+  \end{center}%
+}
+
+\NewDocumentCommand{\cpics}{ m m m m o }{%
+  \begin{center}
+    \vspace{6pt}%
+    \includegraphics[width=#1\linewidth]{#2}%
+    \includegraphics[width=#3\linewidth]{#4}%
+    \IfValueT{#5}{%
+      \vspace{-6pt}%
+      \refstepcounter{figcounter}%
+      \expanded{\noexpand\label{fig:\theproblemnum-\thefigcounter}}%
+      \captionsetup{width=\linewidth, hypcap=false}%
+      \captionof{figure}{\footnotesize\textit{#5}}%
+    }%
+  \end{center}%
+}
+
+% ============================================================
+% PART 9 — WRAPFIGURE UNDERFULL HBOX SUPPRESSION
+% ============================================================
+
+\RequirePackage{etoolbox}
+\AtBeginEnvironment{wrapfigure}{%
+  \setlength{\emergencystretch}{1em}%
+}
+
+\endinput
