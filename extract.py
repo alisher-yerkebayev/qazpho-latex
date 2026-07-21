@@ -1,7 +1,7 @@
 # extract.py — parse an olympiad problem .tex file into problem.yaml
-# Usage: python extract.py input.tex output_dir/
+# Usage: python extract.py
 
-import re # a ReGeX library
+import re
 import sys
 import shutil
 from transliterate import slugify as slugify_ru
@@ -21,7 +21,6 @@ def strip_latex_comments(latex_content: str) -> str:
     joined_text = '\n'.join(clean_lines)
     
     # 2. Collapse excessive vertical empty space
-    # Matches 3 or more newlines, even if lines in between contain only whitespace/tabs
     clean_text = re.sub(r'(\n\s*){3,}', '\n\n', joined_text)
     
     return clean_text
@@ -35,21 +34,14 @@ def strip_outer_braces(s: str) -> str:
 # ── Brace-balanced argument reader ───────────────────────────────────────────
 
 def read_brace_arg(text: str, start: int) -> tuple[str, int]:
-    """
-    Starting from index `start`, returns (content, index_after_arg).
-    Handles both braced arguments like '{0pt}' and unbraced single-character 
-    arguments like '7' or 'R'. Handles nested braces correctly.
-    """
     i = start
-    
-    # Skip any optional whitespace before the argument begins
     while i < len(text) and text[i] in ' \t\n\r':
         i += 1
         
     if i >= len(text):
         raise ValueError(f"Unexpected end of text while reading argument near position {start}")
 
-    # Case 1: Braced argument (standard behavior)
+    # Case 1: Braced argument
     if text[i] == '{':
         depth = 0
         buf = []
@@ -69,16 +61,13 @@ def read_brace_arg(text: str, start: int) -> tuple[str, int]:
                 buf.append(c)
         raise ValueError(f"Unmatched '{{' starting at position {i}")
         
-    # Case 2: Unbraced single-character argument (e.g., \pic7R)
+    # Case 2: Unbraced single-character argument
     else:
         arg = text[i]
         return arg, i + 1
 
-
 def read_optional_arg(text: str, start: int) -> tuple[str | None, int]:
-    # Read [...] optional argument if present, else return (None, start).
     i = start
-    # Tolerate newlines and carriage returns before the bracket
     while i < len(text) and text[i] in ' \t\n\r':
         i += 1
     
@@ -103,12 +92,7 @@ def read_optional_arg(text: str, start: int) -> tuple[str | None, int]:
 
 # ── Figure extraction ─────────────────────────────────────────────────────────
 
-# Known issues:
-#   - Need to account for the support of .pdf files with multiple pages
-#   - Most probably the commands \pic and \pics will be updated for it
-
 def parse_pic(text: str, pos: int) -> tuple[dict, int]:
-    # Parse \pic{lines}{align}{vspace}{width}{path}[caption]
     lines, pos = read_brace_arg(text, pos)
     align, pos = read_brace_arg(text, pos)
     vspace, pos = read_brace_arg(text, pos)
@@ -124,11 +108,10 @@ def parse_pic(text: str, pos: int) -> tuple[dict, int]:
         'lines': int(lines),
     }
     if caption:
-        fig['caption'] = caption
+        fig['raw_caption'] = caption
     return fig, pos
 
 def parse_cpic(text: str, pos: int) -> tuple[dict, int]:
-    # Parse \cpic{width}{path}[caption]
     width, pos = read_brace_arg(text, pos)
     path, pos = read_brace_arg(text, pos)
     caption, pos = read_optional_arg(text, pos)
@@ -139,18 +122,16 @@ def parse_cpic(text: str, pos: int) -> tuple[dict, int]:
         'width': float(width),
     }
     if caption:
-        fig['caption'] = caption
+        fig['raw_caption'] = caption
     return fig, pos
 
 def parse_cpics(text: str, pos: int) -> tuple[list[dict], int]:
-    # Parse \cpics{width1}{path1}{width2}{path2}[caption]
     width1, pos = read_brace_arg(text, pos)
     path1, pos = read_brace_arg(text, pos)
     width2, pos = read_brace_arg(text, pos)
     path2, pos = read_brace_arg(text, pos)
     caption, pos = read_optional_arg(text, pos)
 
-    # Returns two figure dicts to be added to the figures pool
     fig1 = {
         'command': 'cpics',
         'original_path': path1,
@@ -163,34 +144,24 @@ def parse_cpics(text: str, pos: int) -> tuple[list[dict], int]:
     }
     
     if caption:
-        fig1['caption'] = caption
-        fig2['caption'] = caption  # Share the caption metadata
+        fig1['raw_caption'] = caption
+        fig2['raw_caption'] = caption
         
     return [fig1, fig2], pos
 
 def resolve_image_path(base_dir: Path, img_path_str: str) -> Path | None:
-    """
-    Attempts to find the image file by checking the exact path, 
-    and then falling back to common extensions.
-    """
     src = base_dir / img_path_str
-    
-    # 1. Check if it exists exactly as written (e.g., extension was explicitly provided)
     if src.is_file():
         return src
         
-    # 2. Try appending raster extensions
-    # Note: We use string concatenation to avoid pathlib stripping valid dots in filenames (like 1b.1)
     raster_extensions = ['.png', '.jpg', '.jpeg']
     for ext in raster_extensions:
         candidate = base_dir / f"{img_path_str}{ext}"
         if candidate.is_file():
             return candidate
             
-    # 3. Dummy case for .pdf (to be updated later for .IPE multi-page support)
     pdf_candidate = base_dir / f"{img_path_str}.pdf"
     if pdf_candidate.is_file():
-        # TODO: Implement multi-page PDF splitting/metadata extraction here in the future
         return pdf_candidate
         
     return None
@@ -198,7 +169,6 @@ def resolve_image_path(base_dir: Path, img_path_str: str) -> Path | None:
 # ── Task item splitter ────────────────────────────────────────────────────────
 
 def split_task_items(task_body: str) -> list[str]:
-    # Split \begin{task}...\end{task} body on \item boundaries.
     items = []
     parts = re.split(r'\\item', task_body)
     for part in parts:
@@ -209,22 +179,17 @@ def split_task_items(task_body: str) -> list[str]:
 
 # ── Part / task block scanner ─────────────────────────────────────────────────
 
-# Matches \part{...} or \begin{task}...\end{task} or \pic/\cpic/\cpics or plain text
 BLOCK_RE = re.compile(
     r'(\\part\s*\{)'                  # group 1: \part{
     r'|(\\begin\s*\{task\})'          # group 2: \begin{task}
-    r'|(\\pic(?![a-zA-Z]))'           # group 3: \pic (unbraced or braced)
-    r'|(\\cpic(?![a-zA-Z]))'          # group 4: \cpic (unbraced or braced)
-    r'|(\\cpics(?![a-zA-Z]))'         # group 5: \cpics (unbraced or braced)
-    r'|(\\physeq\s*[\[{])',           # group 6: \physeq (future)
+    r'|(\\pic(?![a-zA-Z]))'           # group 3: \pic
+    r'|(\\cpic(?![a-zA-Z]))'          # group 4: \cpic
+    r'|(\\cpics(?![a-zA-Z]))'         # group 5: \cpics
+    r'|(\\physeq\s*[\[{])',           # group 6: \physeq
     re.DOTALL
 )
 
 def extract_environment(text: str, env: str, start: int) -> tuple[str, int]:
-    
-    # Given text starting just after \begin{env}, find matching \end{env}.
-    # Returns (body, position_after_end).
-    
     open_pat = re.compile(r'\\begin\s*\{' + re.escape(env) + r'\}')
     close_pat = re.compile(r'\\end\s*\{' + re.escape(env) + r'\}')
     depth = 1
@@ -247,17 +212,12 @@ def extract_environment(text: str, env: str, start: int) -> tuple[str, int]:
 # ── Top-level problem body parser ─────────────────────────────────────────────
 
 def parse_body(text: str) -> tuple[list, list]:
-    
-    # Walk the problem body, producing:
-    #   - parts: list of part dicts (each with title, prose, tasks, figures)
-    #   - figures: flat list of all figures found (for copying)
-    
     parts = []
     all_figures = []
-    current_part = {'title': None, 'content': []}  # content = list of blocks
+    current_part = {'title': None, 'content': []}
 
     i = 0
-    last_i = 0  # tracks where unmatched prose starts
+    last_i = 0
 
     def flush_prose(start, end):
         chunk = text[start:end].strip()
@@ -268,7 +228,6 @@ def parse_body(text: str) -> tuple[list, list]:
         flush_prose(last_i, m.start())
 
         if m.group(1):  # \part{
-            # Save current part, start new one
             parts.append(current_part)
             title, end = read_brace_arg(text, m.start() + len('\\part'))
             current_part = {'title': title, 'content': []}
@@ -304,17 +263,15 @@ def parse_body(text: str) -> tuple[list, list]:
                 fig['id'] = f"fig_{len(all_figures) + 1:02d}"
                 all_figures.append(fig)
                 refs.append(fig['id'])
-            # Add a single content block referencing both images together
             current_part['content'].append({'type': 'figure_group', 'refs': refs})
             last_i = end
 
-        elif m.group(6):  # \physeq (future)
+        elif m.group(6):  # \physeq
             current_part['content'].append({
                 'type': 'physeq_placeholder',
                 'offset': m.start(),
             })
-
-            last_i = m.start()  # leave in prose for now; revisit when implemented
+            last_i = m.start()
 
     flush_prose(last_i, len(text))
     parts.append(current_part)
@@ -325,11 +282,9 @@ def parse_body(text: str) -> tuple[list, list]:
 def process_problem_body(title: str, points: float, slug: str, body: str, tex_path: Path, output_dir: Path, lang: str) -> None:
     parts, figures = parse_body(body)
 
-    # ── UNCONDITIONALLY create the figures folder ──
     figures_dir = output_dir / 'figures'
     figures_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── Build figures dict and copy files ──
     figures_map = {}
     
     if figures:
@@ -350,11 +305,15 @@ def process_problem_body(title: str, points: float, slug: str, body: str, tex_pa
                 suffix = Path(fig['original_path']).suffix
                 dest_name = fig['id'] + suffix
 
-            entry = {k: v for k, v in fig.items() if k != 'original_path'}
+            entry = {k: v for k, v in fig.items() if k not in ('original_path', 'raw_caption')}
             entry['path'] = f"figures/{dest_name}"
+            
+            # Map caption to language-keyed dict
+            if 'raw_caption' in fig:
+                entry['caption'] = {lang: fig['raw_caption']}
+
             figures_map[fig['id']] = entry
 
-    # ── Build YAML structure ──
     yaml_parts = []
     for p in parts:
         if p['title'] is None and not p['content']:
@@ -400,7 +359,6 @@ def process_problem_body(title: str, points: float, slug: str, body: str, tex_pa
 
 def get_slug(title: str, lang: str) -> str:
     if lang == 'kz':
-        # Using python-slugify for Kazakh text support
         return slugify_en(title)
     elif lang == 'en':
         return slugify_en(title)
@@ -413,7 +371,6 @@ def extract(tex_path: Path, output_dir: Path, lang: str = 'ru') -> None:
     text = tex_path.read_text(encoding='utf-8')
     text = strip_latex_comments(text)
 
-    # ── Extract \problem{title}{points} ──
     pm = re.search(r'\\problem\s*\{', text)
     if not pm:
         raise ValueError("No \\problem{} command found")
@@ -424,11 +381,9 @@ def extract(tex_path: Path, output_dir: Path, lang: str = 'ru') -> None:
     slug = get_slug(title, lang)
     body = text[body_start:].strip()
 
-    # ── Detect subproblems (Солянка) ──
     sub_matches = list(re.finditer(r'\\subproblem\s*\{', body))
 
     if not sub_matches:
-        # Standard independent problem
         process_problem_body(title, points, slug, body, tex_path, output_dir, lang)
         print(f"  -> Extracted standard problem: {title}")
     else:
@@ -440,7 +395,10 @@ def extract(tex_path: Path, output_dir: Path, lang: str = 'ru') -> None:
             sub_title, after_sub_title = read_brace_arg(body, match.start() + len('\\subproblem'))
             sub_points, sub_body_start = read_brace_arg(body, after_sub_title)
             sub_points = float(sub_points)
-            sub_slug = get_slug(sub_title, lang)
+            
+            # Generate the alphabetic prefix (a-, b-, c-, etc.) based on index
+            prefix = f"{chr(97 + i)}-"
+            sub_slug = f"{prefix}{get_slug(sub_title, lang)}"
             
             # Determine where the subproblem body ends
             if i + 1 < len(sub_matches):
@@ -450,15 +408,13 @@ def extract(tex_path: Path, output_dir: Path, lang: str = 'ru') -> None:
                 
             sub_body = body[sub_body_start:sub_body_end].strip()
             
-            # Create sub-directory and process as an independent problem
             sub_output_dir = output_dir / sub_slug
             sub_output_dir.mkdir(parents=True, exist_ok=True)
             process_problem_body(sub_title, sub_points, sub_slug, sub_body, tex_path, sub_output_dir, lang)
             
             subproblems_list.append(sub_slug)
-            print(f"     * Extracted subproblem: {sub_title}")
+            print(f"    * Extracted subproblem: {sub_title}")
 
-        # Write the top-level YAML for the Солянка
         composite_yaml = {
             'meta': {
                 'title': {lang: title},
@@ -474,9 +430,6 @@ def extract(tex_path: Path, output_dir: Path, lang: str = 'ru') -> None:
         out_yaml = output_dir / 'problem.yaml'
         with open(out_yaml, 'w', encoding='utf-8') as f:
             yaml.dump(composite_yaml, f, allow_unicode=True, sort_keys=False, default_flow_style=False)
-
-
-# ── Entry point ───────────────────────────────────────────────────────────────
 
 def main():
     if len(sys.argv) > 1:
