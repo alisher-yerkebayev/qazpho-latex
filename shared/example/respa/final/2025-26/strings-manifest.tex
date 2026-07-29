@@ -1,0 +1,19 @@
+\SetOlympString{city}{%
+    \ifOlympLangRu Астана\fi%
+    \ifOlympLangKz Астана\fi%
+}   % identical in both languages — no branching needed, actually
+
+\SetOlympString{eventdates}{%
+    \ifOlympLangRu 20--25 марта \OlympYear{} года, г.~\OlympString{city}\fi%
+    \ifOlympLangKz \OlympYear{} жылдың 20-25 наурызы, \OlympString{city}~қ-сы\fi%
+}
+
+\SetOlympString{touronedate}{%
+    \ifOlympLangRu 21 марта \OlympYear{} года\fi%
+    \ifOlympLangKz 21 наурыз, \OlympYear{} жыл\fi%
+}
+
+\SetOlympString{tourtwodate}{%
+    \ifOlympLangRu 22 марта \OlympYear{} года\fi%
+    \ifOlympLangKz 22 наурыз, \OlympYear{} жыл\fi%
+}

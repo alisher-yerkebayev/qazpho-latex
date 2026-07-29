@@ -24,10 +24,10 @@
 # Forward slashes work fine in kpathsea/MiKTeX on Windows too, so there
 # is no need for backslashes here.
 
-$ENV{'TEXINPUTS'} = '../shared//;../units//;' . ($ENV{'TEXINPUTS'} // '');
+$ENV{'TEXINPUTS'} = '../shared/;../units//;' . ($ENV{'TEXINPUTS'} // '');
 
 # If you ever run latexmk from WSL/Linux/macOS instead of native Windows,
 # use this form instead (colon-separated):
-# $ENV{'TEXINPUTS'} = '../shared//:../units//:' . ($ENV{'TEXINPUTS'} // '');
+# $ENV{'TEXINPUTS'} = '../shared/:../units//:' . ($ENV{'TEXINPUTS'} // '');
 
 $pdf_mode = 1;

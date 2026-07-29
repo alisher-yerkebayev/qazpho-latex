@@ -1,0 +1,772 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{olympiad-marking}[2027/01/01 v1.2 Author-facing rough marking-scheme preview]
+
+% ============================================================
+%  olympiad-marking.sty
+%  Author-facing "rough marking scheme" preview layer. Loaded only
+%  by preamble_author.tex, never by build.py output.
+%
+%  Requires: olympiad.cls (loaded first) -- uses \OlympCurrentPrefix,
+%  \OlympStringFallback, and the fact that \solution/\subsolution
+%  already reset the `equation' counter.
+%
+%  ============================================================
+%  WHY EVERYTHING BELOW IS BUILT THE WAY IT IS -- READ THIS FIRST
+%  ============================================================
+%  Two independent, hard-won facts drive almost every design choice
+%  in this file:
+%
+%  (1) \OlympStringFallback (\@ifundefined-based) and hyperref's
+%      real \eqref/\ref machinery are BOTH genuinely unsafe to force
+%      through a SECOND expansion pass (an expl3 ":x"/"Nx" argument,
+%      i.e. an \edef-like context). Their internal \reserved@a/
+%      \reserved@b-style bookkeeping assumes it is running in normal
+%      execution, not being re-scanned by another \edef. Doing so
+%      doesn't just give a wrong answer -- it throws a raw,
+%      confusing TeX error ("Undefined control sequence
+%      \reserved@a", "Argument of \reserved@a has an extra }") that
+%      has nothing to do with the actual mistake.
+%
+%      Consequence: whenever this file needs to freeze author
+%      content (an eq's body/suffix, a \criterion's {text}) into a
+%      permanent row -- because \l__olympm_*_tl are shared locals
+%      that the NEXT \eq/\criterion call will overwrite -- it must
+%      freeze it WITHOUT expanding it. The tool for that is
+%      \tl_gset_eq:cN (a \let-style copy: zero expansion, but still
+%      captures the CURRENT content into an INDEPENDENT variable,
+%      immune to the shared local being reset later). Every
+%      "*_tl" -> "row satellite" step below exists for this reason.
+%
+%  (2) \OlympCurrentPrefix (like the old \__olympm_eq_prefix:) is
+%      built from \arabic/\printcounter/\ifOlympProblems/etc. --
+%      ALL genuinely safe to expand -- but it reads LIVE, MUTABLE
+%      counters (solnum, subsolnum, ...). That makes it fundamentally
+%      different from \OlympStringFallback: it is *safe* to
+%      freeze via a normal ":x" pass, but *unsafe to leave lazy*,
+%      because by the time a deferred \showmarking finally executes
+%      a left-lazy reference, those counters may have moved on to a
+%      LATER problem, silently producing the WRONG target.
+%
+%      Consequence: this file always freezes \OlympCurrentPrefix
+%      (and \theequation) into plain digits/letters via a small,
+%      isolated ":x" step AT RECORD TIME, for anything it builds
+%      itself (like the clickable "(n)" in a marking row). It
+%      CANNOT do the same for an \eqref{n} an AUTHOR embeds inside
+%      `suffix'/`tail'/\criterion's {text}, because \eqref calls the
+%      genuinely-unsafe-to-refreeze \OlympOldEqref -- so that one
+%      piece of author content is kept completely unexpanded/lazy
+%      (fact (1)'s remedy), which means it resolves using whatever
+%      \OlympCurrentPrefix is active WHEN \showmarking FINALLY
+%      TYPESETS THE ROW, not when the \eq/\criterion was written.
+%
+%      THIS IS WHY \showmarking MUST BE CALLED BEFORE THE NEXT
+%      \solution/\subsolution/\subproblem, i.e. right after each
+%      block's criteria (the unstarred, buffer-flushing form is the
+%      default for exactly this reason). Deferring it to the very
+%      end and letting \eq/\criterion calls from several different
+%      problems pile up in one buffer WILL make any author \eqref{n}
+%      embedded in that content resolve against the WRONG (final)
+%      problem's prefix. This is not a bug to "fix" harder -- it is
+%      the unavoidable cost of \eqref's target depending on live
+%      counters, and the one-flush-per-block pattern sidesteps it
+%      completely. If you truly need one combined table at the end,
+%      don't use \eqref inside suffix/tail/\criterion text; refer to
+%      equations by writing the number in plain words instead.
+%
+%  New language-neutral string slots (via \OlympStringFallback):
+%    eq_formula, eq_numerical, marking_content, marking_points, marking_total
+% ============================================================
+
+\RequirePackage{expl3}
+\RequirePackage{xparse}
+\RequirePackage{tabularx}   % no-op if olympiad-layout.sty already loaded it
+
+\newcommand{\markingheader}{%
+\newpage
+\ifOlympTheory%
+\stepcounter{solnum}%
+\hspace{12pt}\textbf{\OlympGrade{} \OlympString{grade_text}. \OlympString{problem}~\thesolnum. \OlympString{marking_jury}: \underline{\hspace{4.5cm}}. \OlympString{marking_cipher}: \underline{\hspace{4.5cm}}}%
+\fi\ifOlympExperiment%
+\hspace{12pt}\textbf{\OlympGrade{} \OlympString{grade_text}. Эксперимент. \OlympString{marking_jury}: \underline{\hspace{4.5cm}}. \OlympString{marking_cipher}: \underline{\hspace{4.5cm}}}%
+\fi%
+}
+
+% ---- ltablex/tabularx compatibility shim -------------------------
+%
+% olympiad-layout.sty loads ltablex (so long marking tables can break
+% across a page, via longtable under the hood). ltablex works by
+% completely REPLACING tabularx's own \TX@endtabularx -- and its
+% replacement's last line is a hardcoded, literal `\end{tabularx}'
+% (see ltablex.sty), discarding vanilla tabularx's own closing step,
+% which instead re-emits `\end{<name>}' for whatever \@currenvir
+% actually was when `\tabularx{width}{cols}' was first called.
+%
+% That \@currenvir trick is exactly what lets the OLD-STYLE
+% `\tabularx{width}{cols} ... \endtabularx' call (no \begin/\end) be
+% wrapped inside a custom \newenvironment and closed via THAT
+% environment's own \end{<name>} -- which is exactly how `mse' below
+% is built, so that content authors can add rows via \escheme/
+% \bscheme/\blockbegin/\etotal between \begin{mse} and \end{mse}
+% (the modern `\begin{tabularx}...\end{tabularx}' form CANNOT be
+% wrapped this way at all: LaTeX sets \@currenvir to "tabularx"
+% itself the moment \begin{tabularx} runs, so tabularx's own body-
+% capture then goes looking for a literal `\end{tabularx}' that
+% never appears in the source -- it's hidden inside \end{mse} -- and
+% runs off the end of the file. The raw, no-\begin/\end call is the
+% only form that can be wrapped in a custom environment at all.).
+%
+% With ltablex's hardcoded `\end{tabularx}' in place, `mse' fails
+% every time with "\begin{mse} ... ended by \end{tabularx}", because
+% the kernel's environment stack still has "mse" on top, not
+% "tabularx", when that literal \end{tabularx} finally runs.
+%
+% Fix: reinstate ltablex's ENTIRE \TX@endtabularx (so its longtable-
+% based page-breaking is untouched) but swap its last line back to
+% the \@currenvir-aware close. For an ordinary, un-wrapped
+% `\begin{tabularx}...\end{tabularx}' elsewhere in the document this
+% is a no-op -- \@currenvir there really is "tabularx", so the
+% reconstructed `\end{\TX@}' IS `\end{tabularx}', identical to
+% ltablex's own hardcoded version. Only the wrapped-in-another-
+% environment case (mse) actually changes behavior -- for the
+% better. Guarded by \@ifpackageloaded so this is a pure no-op
+% (vanilla tabularx's \TX@endtabularx is already \@currenvir-aware)
+% if olympiad-marking.sty is ever used without olympiad-layout.sty.
+%
+% NB: no \makeatletter/\makeatother pair here -- catcode(@)=11 is
+% already in effect for this whole file (the kernel wraps every
+% \RequirePackage/\usepackage'd file in that automatically). A
+% \makeatother would unconditionally force catcode(@) back to 12 for
+% everything AFTER it in this file -- not "restore" anything, since
+% \makeatother doesn't remember a prior state -- silently breaking
+% every other @-name below (e.g. \eqref's own \@ifundefined a few
+% hundred lines down, PART 10), which would then print as literal,
+% garbled running text instead of executing.
+\@ifpackageloaded{ltablex}{
+  \renewcommand\TX@endtabularx{%
+    \expandafter\TX@newcol\expandafter{\tabularxcolumn{\TX@col@width}}%
+    \let\verb\TX@verb
+    \def\@elt##1{\global\value{##1}\the\value{##1}\relax}%
+    \edef\TX@ckpt{\cl@@ckpt}%
+    \let\@elt\relax
+    \TX@old@table=\maxdimen
+    \TX@col@width=\TX@target
+    \global\TX@cols=\@ne
+    \TX@typeout@
+      {\@spaces Table Width\@spaces Column Width\@spaces X Columns}%
+    \let\savecaption\caption
+    \def\caption{\@ifstar\TX@cap@gobble\TX@cap@gobble}%
+    \let\saveendhead\endhead
+    \def\endhead{\\}%
+    \let\saveendfirsthead\endfirsthead
+    \def\endfirsthead{\\}%
+    \let\saveendfoot\endfoot
+    \def\endfoot{\\}%
+    \let\saveendlastfoot\endlastfoot
+    \def\endlastfoot{\\}%
+    \ifTX@convertX@
+      \TX@trial{\def\NC@rewrite@X{\NC@find l}}%
+      \ifdim\wd\@tempboxa<\TX@target
+        \TX@newcol{l}%
+      \else
+        \TX@convertX@false
+      \fi
+    \fi
+    \ifTX@convertX@
+      \relax
+    \else
+      \TX@trial{\def\NC@rewrite@X{%
+          \global\advance\TX@cols\@ne\NC@find p{\TX@col@width}}}%
+      \loop
+        \TX@arith
+        \ifTX@
+        \TX@trial{}%
+      \repeat
+    \fi
+    {\let\@footnotetext\TX@ftntext\let\@xfootnotenext\TX@xftntext
+      \LTchunksize\maxdimen
+      \let\caption\savecaption
+      \let\endhead\saveendhead
+      \let\endfirsthead\saveendfirsthead
+      \let\endfoot\saveendfoot
+      \let\endlastfoot\saveendlastfoot
+      \expandafter\longtable
+        \the\toks@
+      \endlongtable
+      }%
+    \global\TX@ftn\expandafter{\expandafter}\the\TX@ftn
+    \ifnum0=`{\fi}%
+     \expandafter\expandafter\expandafter
+     \TX@find@endtabularxbb
+      \expandafter\end\expandafter{\TX@}%
+      \endtabularx\TX@\endtabularx\TX@find@endtabularxb
+  }
+}{}
+
+\ExplSyntaxOn
+
+% ---- PART 1: storage --------------------------------------------
+\seq_new:N \g__olympm_rows_seq
+\int_new:N \g__olympm_rowid_int
+\int_gzero:N \g__olympm_rowid_int
+\fp_new:N  \g__olympm_total_fp
+\fp_gzero:N \g__olympm_total_fp
+
+% ---- PART 2: per-call local state --------------------------------
+\tl_new:N \l__olympm_points_tl
+\tl_new:N \l__olympm_numpoints_tl
+\tl_new:N \l__olympm_prefix_tl
+\tl_new:N \l__olympm_label_tl
+\tl_new:N \l__olympm_override_tl
+\tl_new:N \l__olympm_suffix_tl
+\tl_new:N \l__olympm_type_tl
+\tl_new:N \l__olympm_captured_body_tl
+\tl_new:N \l__olympm_shown_body_tl
+\tl_new:N \l__olympm_n_tl              % frozen \theequation, digits only
+\tl_new:N \l__olympm_fullprefix_tl     % frozen \OlympCurrentPrefix, text only
+\tl_new:N \l__olympm_reflabel_tl       % frozen label actually used for this eq
+\tl_new:N \l__olympm_row_tl            % scratch: row under construction
+\bool_new:N \l__olympm_numpoints_present_bool
+
+% ---- PART 3: type normalisation (unchanged semantics) ------------
+\cs_new_protected:Npn \__olympm_settype_eq:n #1 {
+  \str_case:nnF {#1}
+    {
+      {common}      { \tl_set:Nn \l__olympm_type_tl {common} }
+      {alternative} { \tl_set:Nn \l__olympm_type_tl {alt} }
+      {other}       { \tl_set:Nn \l__olympm_type_tl {alt} }
+    }
+    {
+      \PackageWarning{olympiad-marking}
+        { type=#1~is~not~meaningful~for~eq~(only~common~/~alternative~/~other~are);~treating~as~common,~exactly~like~extract-solution.py~will }
+      \tl_set:Nn \l__olympm_type_tl {common}
+    }
+}
+
+\cs_new_protected:Npn \__olympm_settype_criterion:n #1 {
+  \str_case:nnF {#1}
+    {
+      {remark}      { \tl_set:Nn \l__olympm_type_tl {alt} }
+      {penalty}     { \tl_set:Nn \l__olympm_type_tl {alt} }
+      {alternative} { \tl_set:Nn \l__olympm_type_tl {alt} }
+    }
+    {
+      \PackageWarning{olympiad-marking}
+        { type=#1~is~not~recognised~by~\string\criterion~(only~remark~/~penalty~/~alternative~are);~treating~as~plain~text,~exactly~like~extract-solution.py~will }
+      \tl_set:Nn \l__olympm_type_tl {common}
+    }
+}
+
+% ---- PART 4: reset helpers ---------------------------------------
+\cs_new_protected:Npn \__olympm_eq_reset: {
+  \tl_clear:N \l__olympm_points_tl
+  \tl_clear:N \l__olympm_numpoints_tl
+  \tl_clear:N \l__olympm_prefix_tl
+  \tl_clear:N \l__olympm_label_tl
+  \tl_clear:N \l__olympm_override_tl
+  \tl_clear:N \l__olympm_suffix_tl
+  \tl_set:Nn  \l__olympm_type_tl {common}
+}
+
+\cs_new_protected:Npn \__olympm_criterion_reset: {
+  \tl_clear:N \l__olympm_points_tl
+  \tl_set:Nn  \l__olympm_type_tl {common}
+}
+
+% ---- PART 5: keys (kernel \DeclareKeys/\SetKeys, matching cls) ---
+\DeclareKeys[olympm/eq]
+  {
+    points     .tl_set:N = \l__olympm_points_tl,
+    numpoints  .tl_set:N = \l__olympm_numpoints_tl,
+    prefix     .tl_set:N = \l__olympm_prefix_tl,
+    label      .tl_set:N = \l__olympm_label_tl,
+    override   .tl_set:N = \l__olympm_override_tl,
+    suffix     .tl_set:N = \l__olympm_suffix_tl,
+    tail       .tl_set:N = \l__olympm_suffix_tl,
+    type       .code:n   = { \__olympm_settype_eq:n {#1} },
+  }
+
+\DeclareKeys[olympm/criterion]
+  {
+    points .tl_set:N = \l__olympm_points_tl,
+    type   .code:n   = { \__olympm_settype_criterion:n {#1} },
+  }
+
+% ---- PART 6: point-total bookkeeping (unchanged semantics) -------
+\cs_new_protected:Npn \__olympm_addpoints:n #1 {
+  \tl_if_empty:nF {#1}
+    {
+      \tl_if_in:nnF {#1} {/}
+        { \fp_gadd:Nn \g__olympm_total_fp {#1} }
+    }
+}
+
+\cs_new_protected:Npn \__olympm_check_numpoints: {
+  \bool_set_false:N \l__olympm_numpoints_present_bool
+  \tl_if_empty:NF \l__olympm_numpoints_tl
+    {
+      \tl_if_eq:eeF {\l__olympm_numpoints_tl} {0}
+        {
+          \tl_if_eq:eeF {\l__olympm_numpoints_tl} {0.0}
+            { \bool_set_true:N \l__olympm_numpoints_present_bool }
+        }
+    }
+}
+
+% ---- PART 7: row-freezing plumbing -------------------------------
+%
+% \__olympm_snapshot_piece:nN {role} \l__olympm_xxx_tl
+%   Copies the CURRENT content of a shared local into a fresh,
+%   permanent, THIS-ROW-ONLY variable via \tl_gset_eq:cN -- a
+%   \let-style copy, so whatever is inside (including an author's
+%   own \eqref{n}) is preserved completely untouched, never
+%   expanded, and immune to the shared local being reset by the
+%   next \eq/\criterion call.
+%
+% \__olympm_put_piece:Nn <target tl> {role}
+%   Appends, to <target tl>, a PROTECTED reference to that snapshot
+%   (\exp_not:N shields \tl_use:c itself from expansion) built via a
+%   single ":x" pass whose ONLY job is to resolve the numeric row id
+%   into concrete digits -- 100% safe, since the row id is nothing
+%   but a counter value.
+%
+\cs_new_protected:Npn \__olympm_snapshot_piece:nN #1 #2 {
+  \tl_new:c { g__olympm_row_ \int_use:N \g__olympm_rowid_int _#1 _tl }
+  \tl_gset_eq:cN { g__olympm_row_ \int_use:N \g__olympm_rowid_int _#1 _tl } #2
+}
+\cs_new_protected:Npn \__olympm_put_piece:Nn #1 #2 {
+  \tl_put_right:Nx #1
+    { \exp_not:N \tl_use:c { g__olympm_row_ \int_use:N \g__olympm_rowid_int _#2 _tl } }
+}
+
+% Snapshots whatever is CURRENTLY staged in \l__olympm_row_tl as the
+% row's own final, permanent content.
+\cs_new_protected:Npn \__olympm_snapshot_row: {
+  \tl_new:c { g__olympm_row_ \int_use:N \g__olympm_rowid_int _tl }
+  \tl_gset_eq:cN { g__olympm_row_ \int_use:N \g__olympm_rowid_int _tl } \l__olympm_row_tl
+  \seq_gput_right:Nx \g__olympm_rows_seq { \int_use:N \g__olympm_rowid_int }
+}
+
+% A CLICKABLE "(n)" reference for a row WE control (not author text):
+% prefix and n are frozen to plain text FIRST (both are safe to
+% expand -- see the file-level note), so this single ":x" pass never
+% has to expand \OlympOldEqref itself, only shield it.
+\cs_new_protected:Npn \__olympm_put_ref:N #1 {
+  \tl_put_right:Nx #1
+    { \exp_not:N \OlympOldEqref { \l__olympm_reflabel_tl } }
+}
+
+% ---- PART 8: the eq ENVIRONMENT -----------------------------------
+%
+%   \begin{eq}[<keys>] <math> \end{eq}
+%
+% With no keys, typesets EXACTLY like a bare `equation' -- but ALWAYS
+% records a row (defaults filled in for anything not given): the
+% whole point of `eq' vs plain `equation'/`align' is "please copy
+% this into the marking scheme". Equations that should NOT be
+% extracted should simply not use `eq'.
+%
+% Default label: eq:<OlympCurrentPrefix>.<n>, matching
+% extract-solution.py's own default (see its `label_val =
+% options.get('label', f'eq:{eq_counter:02d}')' plus the zero-padding
+% note in the class file) -- \OlympCurrentPrefix supplies the human
+% part (1, 1A, 2B, ...), \theequation supplies n (already reset to 0
+% by every \solution/\subsolution, exactly mirroring
+% extract-solution.py's own per-file counter).
+\NewDocumentEnvironment{eq}{ O{} b }
+  {
+    \group_begin:
+      \__olympm_eq_reset:
+      \tl_set:Nn \l__olympm_captured_body_tl {#2}
+      \SetKeys[olympm/eq]{#1}
+      \__olympm_check_numpoints:
+      \begin{equation}
+        \tl_if_empty:NTF \l__olympm_label_tl
+          { \label{eq:\OlympCurrentPrefix.\arabic{equation}} }
+          { \label{\l__olympm_label_tl} }%
+        #2
+      \end{equation}
+      \__olympm_record_eq:
+    \group_end:
+  }
+  { }
+
+\cs_new_protected:Npn \__olympm_record_eq: {
+  \tl_if_empty:NTF \l__olympm_override_tl
+    { \tl_set_eq:NN \l__olympm_shown_body_tl \l__olympm_captured_body_tl }
+    { \tl_set_eq:NN \l__olympm_shown_body_tl \l__olympm_override_tl }
+
+  % Freeze the two LIVE-but-safe-to-expand quantities immediately,
+  % and the actual label used -- a custom `label=' REPLACES the
+  % default eq:<prefix>.<n> label (amsmath errors on two \label's
+  % for one equation), so the marking table's own clickable "(n)"
+  % must target whichever label really exists, not always reconstruct
+  % the default -- otherwise a custom-labelled equation would show
+  % an unresolvable "(??)" in its own marking row.
+  \tl_set:Nx \l__olympm_n_tl { \theequation }
+  \tl_set:Nx \l__olympm_fullprefix_tl { \OlympCurrentPrefix }
+  \tl_if_empty:NTF \l__olympm_label_tl
+    { \tl_set:Nx \l__olympm_reflabel_tl { eq:\l__olympm_fullprefix_tl.\l__olympm_n_tl } }
+    { \tl_set_eq:NN \l__olympm_reflabel_tl \l__olympm_label_tl }
+
+  \int_gincr:N \g__olympm_rowid_int
+  \__olympm_snapshot_piece:nN {pfx} \l__olympm_prefix_tl
+  \__olympm_snapshot_piece:nN {sfx} \l__olympm_suffix_tl
+  \__olympm_snapshot_piece:nN {bdy} \l__olympm_shown_body_tl
+
+  % ---- primary row ----
+  \tl_clear:N \l__olympm_row_tl
+  \tl_if_eq:eeT {\l__olympm_type_tl} {alt} { \tl_put_right:Nn \l__olympm_row_tl { \quad \textit \bgroup } }
+  \tl_if_empty:NTF \l__olympm_prefix_tl
+    { \tl_put_right:Nn \l__olympm_row_tl { \OlympStringFallback{eq_formula} } }
+    { \__olympm_put_piece:Nn \l__olympm_row_tl {pfx} }
+  \tl_put_right:Nn \l__olympm_row_tl { ~ }
+  \__olympm_put_ref:N \l__olympm_row_tl
+  \tl_put_right:Nn \l__olympm_row_tl { :~$ }
+  \__olympm_put_piece:Nn \l__olympm_row_tl {bdy}
+  \tl_put_right:Nn \l__olympm_row_tl { $ }
+  \__olympm_put_piece:Nn \l__olympm_row_tl {sfx}
+  \tl_if_eq:eeT {\l__olympm_type_tl} {alt} { \tl_put_right:Nn \l__olympm_row_tl { \egroup } }
+  \tl_put_right:Nn \l__olympm_row_tl { & }
+  \tl_if_eq:eeT {\l__olympm_type_tl} {alt} { \tl_put_right:Nn \l__olympm_row_tl { \textit \bgroup } }
+  \tl_if_empty:NTF \l__olympm_points_tl
+    { \tl_put_right:Nn \l__olympm_row_tl { \textbf{?} } }
+    { \tl_put_right:Nx \l__olympm_row_tl { \l__olympm_points_tl } }
+  \tl_if_eq:eeT {\l__olympm_type_tl} {alt} { \tl_put_right:Nn \l__olympm_row_tl { \egroup } }
+  \tl_put_right:Nn \l__olympm_row_tl { \\ \hline }
+  \__olympm_snapshot_row:
+  \tl_if_eq:eeF {\l__olympm_type_tl} {alt}
+    { \exp_args:No \__olympm_addpoints:n \l__olympm_points_tl }
+
+  % ---- optional second row: numerical value ----
+  \bool_if:NT \l__olympm_numpoints_present_bool
+    {
+      \int_gincr:N \g__olympm_rowid_int
+      \tl_clear:N \l__olympm_row_tl
+      \tl_if_eq:eeT {\l__olympm_type_tl} {alt} { \tl_put_right:Nn \l__olympm_row_tl { \quad \textit \bgroup } }
+      \tl_put_right:Nn \l__olympm_row_tl { \OlympStringFallback{eq_numerical}~ }
+      \__olympm_put_ref:N \l__olympm_row_tl
+      \tl_if_eq:eeT {\l__olympm_type_tl} {alt} { \tl_put_right:Nn \l__olympm_row_tl { \egroup } }
+      \tl_put_right:Nn \l__olympm_row_tl { & }
+      \tl_if_eq:eeT {\l__olympm_type_tl} {alt} { \tl_put_right:Nn \l__olympm_row_tl { \textit \bgroup } }
+      \tl_put_right:Nx \l__olympm_row_tl { \l__olympm_numpoints_tl }
+      \tl_if_eq:eeT {\l__olympm_type_tl} {alt} { \tl_put_right:Nn \l__olympm_row_tl { \egroup } }
+      \tl_put_right:Nn \l__olympm_row_tl { \\ \hline }
+      \__olympm_snapshot_row:
+      \tl_if_eq:eeF {\l__olympm_type_tl} {alt}
+        { \exp_args:No \__olympm_addpoints:n \l__olympm_numpoints_tl }
+    }
+}
+
+% ---- PART 9: \criterion AND \showmarking --------------------------
+\NewDocumentCommand{\criterion}{ O{} m }
+  {
+    \group_begin:
+      \__olympm_criterion_reset:
+      \SetKeys[olympm/criterion]{#1}
+      \tl_set:Nn \l__olympm_suffix_tl {#2} % reuse the suffix slot as scratch for #2
+      \int_gincr:N \g__olympm_rowid_int
+      \__olympm_snapshot_piece:nN {txt} \l__olympm_suffix_tl
+      \tl_clear:N \l__olympm_row_tl
+      \tl_if_eq:eeT {\l__olympm_type_tl} {alt} { \tl_put_right:Nn \l__olympm_row_tl { \quad \textit \bgroup } }
+      \__olympm_put_piece:Nn \l__olympm_row_tl {txt}
+      \tl_if_eq:eeT {\l__olympm_type_tl} {alt} { \tl_put_right:Nn \l__olympm_row_tl { \egroup } }
+      \tl_put_right:Nn \l__olympm_row_tl { & }
+      \tl_if_eq:eeT {\l__olympm_type_tl} {alt} { \tl_put_right:Nn \l__olympm_row_tl { \textit \bgroup } }
+      \tl_if_empty:NTF \l__olympm_points_tl
+    { \tl_put_right:Nn \l__olympm_row_tl { \textbf{?} } }
+    { \tl_put_right:Nx \l__olympm_row_tl { \l__olympm_points_tl } }
+      \tl_if_eq:eeT {\l__olympm_type_tl} {alt} { \tl_put_right:Nn \l__olympm_row_tl { \egroup } }
+      \tl_put_right:Nn \l__olympm_row_tl { \\ \hline }
+      \__olympm_snapshot_row:
+      \tl_if_eq:eeF {\l__olympm_type_tl} {alt}
+        { \exp_args:No \__olympm_addpoints:n \l__olympm_points_tl }
+    \group_end:
+  }
+
+\cs_new:Npn \__olympm_typeset_row:n #1 { \tl_use:c { g__olympm_row_ #1 _tl } }
+
+\NewDocumentCommand{\showmarking}{ s }
+  {
+    \begin{center}\footnotesize Auto-generated~text:~это~---~\textit{черновая~версия}~марк-схемы.~Финальную~версию~марк-схемы~нужно~сгенерировать~через~{\ttfamily extract-marking.py},~и~приписать~{\ttfamily \textbackslash input\{marking\textunderscore ru.tex\}}~сразу~в~конце~своего~решения.\end{center}
+    \begin{center}
+    \begin{tabularx}{\linewidth}{|X|>{\centering\arraybackslash}p{0.12\linewidth}|}
+      \hline
+      \textbf{\OlympStringFallback{marking_content}} & \textbf{\OlympStringFallback{marking_points}} \\ \hline
+      \seq_map_function:NN \g__olympm_rows_seq \__olympm_typeset_row:n
+      \textbf{\OlympStringFallback{marking_total}} & \textbf{\fp_to_tl:N \g__olympm_total_fp} \\ \hline
+    \end{tabularx}
+    \end{center}
+    \IfBooleanF{#1}
+      {
+        \seq_gclear:N \g__olympm_rows_seq
+        \fp_gzero:N \g__olympm_total_fp
+      }
+  }
+
+\ExplSyntaxOff
+
+% ---- \OlympMarkPick -- generic type=solutions/marking switch ------
+% Used by extract-marking.py's generated marking_ru.tex / marking_kz.tex
+% to let ONE generated file serve both a type=solutions compile and a
+% type=marking compile: header row, the extra MP/A columns on every
+% row, intra-group \cline widths, the total row, and the mid-table
+% \pagebreak all differ between the two -- picked here via
+% \ifOlympMarking rather than in Python, since \documentclass (and hence
+% the type) never appears inside solution.tex itself.
+%
+% Safe for ordinary running text / table CELLS (used there as a normal
+% 2-argument macro, expanding like any other macro call during
+% typesetting). NOT safe inside a tabularx COLUMN-SPEC argument, e.g.
+% \begin{tabularx}{\linewidth}{\OlympMarkPick{A}{B}}: array/tabularx's
+% preamble scanner (\@mkpream/\@testpach) walks that argument ONE
+% TOKEN AT A TIME, expanding each token in isolation to see what
+% column-type it names. \OlympMarkPick is a 2-argument macro, so
+% "expanding" the lone \OlympMarkPick token makes TeX go hunting for
+% its {A}{B} arguments in whatever happens to follow inside array's
+% own internal scanning code -- NOT the two braces actually written
+% next to it -- and array errors out with something like "Illegal
+% pream-token (\OlympMarkPick): `c' used". This is true no matter how
+% \OlympMarkPick itself is defined (even a 0-argument macro that
+% expands to several column-spec tokens in one go breaks the same
+% way, since the scanner only re-processes ONE further token of the
+% expansion). Use \OlympMarkBeginTable (below) for the column spec.
+%
+% Two more hard-won constraints on using \OlympMarkPick INSIDE a table:
+%  * Each branch must be a COMPLETE physical row (from the first cell
+%    through the trailing \\), never a partial fragment like "{}{ & &
+%    X}" meant to splice extra trailing cells onto a row shared with
+%    the OTHER branch. A bare alignment-tab (&) sitting inside the
+%    SKIPPED branch, in the middle of an otherwise-shared row, desyncs
+%    \halign's row/column bookkeeping and raises "Incomplete \iffalse"
+%    once enough of the table has been read for it to surface --
+%    reproducible with nothing but plain \iffalse & \fi inside a bare
+%    tabular row, no \OlympMarkPick involved. extract-marking.py's
+%    build_rows() always emits whole rows for exactly this reason.
+%  * Never put \begin{env}/\end{env} inside a \OlympMarkPick argument
+%    (e.g. to conditionally close/reopen the tabularx mid-table): LaTeX
+%    needs to encounter \begin/\end directly in the main input stream,
+%    not read as captured macro-argument text, or you get "Extra }, or
+%    forgotten $." / "Missing } inserted" depending on which branch is
+%    active. Emit the \end{tabularx}/\OlympMarkBeginTable/\begin{...}
+%    sequence unconditionally instead (\OlympMarkBeginTable already
+%    resolves per \ifOlympMarking, so in the untaken mode it's an
+%    invisible same-colspec seam), and wrap only small, &-free
+%    fragments like \pagebreak or a single repeated header row in their
+%    own \OlympMarkPick{}{...}. See extract-marking.py's
+%    generate_marking_tex() for the working pattern.
+\newcommand{\OlympMarkPick}[2]{\ifOlympMarking#2\else#1\fi}
+
+% ---- \OlympMarkBeginTable -- switchable tabularx COLUMN SPEC ------
+% \OlympMarkBeginTable{<solutions colspec>}{<marking colspec>} opens
+% the tabularx itself (i.e. replaces \begin{tabularx}{\linewidth}{...}
+% -- the matching \end{tabularx} is written as usual). It sidesteps
+% \OlympMarkPick's column-spec limitation (see above) by resolving
+% \ifOlympMarking...\fi down to the chosen branch's PLAIN CHARACTERS
+% via a single \edef pass BEFORE \begin{tabularx} is invoked at all --
+% safe, because both branches are literal, already-typeset-safe
+% column-spec text: \centering/\arraybackslash are \protected
+% (untouched by \edef), and \linewidth is a non-expandable register.
+% By the time the real \begin{tabularx} call runs, array's scanner
+% sees only ordinary characters, exactly as if the chosen colspec had
+% been hand-written -- no macro call left for it to trip over.
+\newcommand{\OlympMarkBeginTable}[2]{%
+  \edef\Olymp@marktable@invoke{%
+    \noexpand\begin{tabularx}{\linewidth}{\ifOlympMarking#2\else#1\fi}%
+  }%
+  \Olymp@marktable@invoke
+}
+
+% ---- PART 10: \eqref shorthand ------------------------------------
+% \eqref{#1} takes a BARE equation number (not a full label) and
+% resolves it against the equation actually typeset under the CURRENT
+% \OlympCurrentPrefix, i.e. eq:\OlympCurrentPrefix.#1 -- keeps
+% marking.tex problem-order-agnostic (see file-level note on why
+% \OlympCurrentPrefix must stay live/lazy here, never frozen).
+%
+% If that label is undefined -- which happens whenever this same
+% marking.tex is compiled on its own in a type=marking document that
+% never actually typesets the equations (so \label was never executed
+% for them) -- \eqref falls back to printing the bare number in
+% parentheses, "(#1)", instead of erroring or emitting "??". This lets
+% ONE marking.tex serve both the solutions document (live, clickable
+% cross-references) and the marking-only document (plain numbers)
+% with no changes.
+%
+% A custom label=... given directly to \eq or \criterion does NOT
+% follow the eq:\OlympCurrentPrefix.<n> pattern, so it is never routed
+% through this shorthand -- reference it with \OlympOldEqref{<label>}
+% instead, exactly as before.
+\let\OlympOldEqref\eqref
+\renewcommand{\eqref}[1]{%
+  \@ifundefined{r@eq:\OlympCurrentPrefix.#1}%
+    {\textup{(#1)}}%
+    {\OlympOldEqref{eq:\OlympCurrentPrefix.#1}}%
+}
+
+% hyperref names each equation's PDF anchor from \theHequation, not
+% \theequation -- left at its default, anchors from DIFFERENT blocks
+% whose \theequation both reset to e.g. "1" collide ("destination
+% with the same identifier"). \blocknum (olympiad.cls) is a single
+% flat counter stepped once per \solution/\subsolution specifically
+% so this can be a plain, single-parent \theHequation -- no chngcntr,
+% no reliance on hyperref's own \@addtoreset-based auto-naming (which
+% cannot work here: it only tracks counters created AFTER hyperref
+% loads, and every counter in this system is created by olympiad.cls,
+% which always loads before the user's own \usepackage{hyperref}).
+\ExplSyntaxOn
+\AtBeginDocument{
+  \cs_if_exist:NT \theHequation
+    { \renewcommand{\theHequation}{\arabic{blocknum}.\arabic{equation}} }
+}
+\ExplSyntaxOff
+
+% =============================================
+%%%%%%% MARKING SCHEME FOR EXPERIMENTS %%%%%%%%
+% =============================================
+% Remains mostly the same since Spring 2026 version
+
+\newcounter{taskid} % task counter for mse
+\setcounter{taskid}{0}
+\newcounter{tasktotalrows}
+
+% NOTE on why every command below is DUPLICATED wholesale into an
+% \ifOlympMarking branch and an \else branch, instead of writing one
+% definition that puts a bare `\ifOlympMarking&&&\fi' (or similar)
+% INSIDE the table row it emits:
+%
+% TeX's alignment scanner (\halign, which tabularx/tabular both sit
+% on top of) tracks row/column bookkeeping via a token-level counter
+% that gets updated by EVERY `&' character TeX's tokenizer reads --
+% including one sitting inside the UNTAKEN branch of an \iffalse it
+% is currently skipping over. Conditional-skipping is a token-level
+% scan, not a semantic one, so it does not "know" those `&'s will
+% never be typeset; it still perturbs the bookkeeping. The result
+% shows up much later (once the table's true row count is reached)
+% as "Extra alignment tab has been changed to \cr", "Incomplete
+% \iffalse", or "Extra \fi" -- reproducible with nothing more than a
+% bare `\iffalse & \fi' anywhere inside a tabular row, no custom
+% macros required. This bit the old `mse'/`blockbegin'/`bscheme'/
+% `escheme'/`etotal' code exactly this way (see test-respa2026_expsol
+% in test/): every marking-scheme-experiment table failed with this
+% exact cascade under type=solutions.
+%
+% The fix is to resolve \ifOlympMarking exactly ONCE, at package-load
+% time (here), long before \halign ever starts reading a row, and
+% commit to one COMPLETE, `&'-consistent macro body per mode. Each
+% branch below emits the exact same cells the old single-body version
+% did for that mode -- nothing else changes.
+\ifOlympMarking
+\newenvironment{mse}{% Marking Scheme Experiment
+\makegapedcells
+  \setcounter{taskid}{0}%
+  \tabularx{\linewidth}{
+  |>{\centering\arraybackslash}p{0.045\linewidth}
+  |>{\arraybackslash}p{0.545\linewidth}
+  |>{\centering\arraybackslash}p{0.06\linewidth}
+  |>{\centering\arraybackslash}p{0.03\linewidth}|>{\centering\arraybackslash}p{0.04\linewidth}
+  |>{\centering\arraybackslash}p{0.04\linewidth}
+  |>{\centering\arraybackslash}p{0.04\linewidth}
+  |}%
+    \hline
+    \textbf{\textnumero} & \multicolumn{1}{c|}{\OlympString{marking_content}} & \multicolumn{2}{c|}{\OlympString{marking_points}} & \multicolumn{2}{c|}{\textbf{MP}} & \textbf{A}
+}{%
+  \setcounter{taskid}{0}%
+  \endtabularx
+}
+\else
+\newenvironment{mse}{% Marking Scheme Experiment
+\makegapedcells
+  \setcounter{taskid}{0}%
+  \tabularx{\linewidth}{
+  |>{\centering\arraybackslash}p{0.05\linewidth}
+  |>{\arraybackslash}p{0.74\linewidth}
+  |>{\centering\arraybackslash}p{0.08\linewidth}
+  |>{\centering\arraybackslash}p{0.035\linewidth}|}%
+    \hline
+    \textbf{\textnumero} & \multicolumn{1}{c|}{\OlympString{marking_content}} & \multicolumn{2}{c|}{\OlympString{marking_points}}
+}{%
+  \setcounter{taskid}{0}%
+  \endtabularx
+}
+\fi
+
+% blockbegin / blockend: "Block-scheme" -- optionally, can be used to make a separate block with its own subparts \bscheme
+% \blockbegin{<descriptor>}{<total-points>}{<nrows>}
+\ifOlympMarking
+\NewDocumentCommand{\blockbegin}{m m m}{%
+  \\ \hline \stepcounter{taskid}
+  \setcounter{tasktotalrows}{#3}%
+	\multirow{\thetasktotalrows}{*}{\textbf{M\thetaskid}}%
+	&#1&&\multirow{\thetasktotalrows}{*}{\textbf{#2}}&&&%
+}
+\else
+\NewDocumentCommand{\blockbegin}{m m m}{%
+  \\ \hline \stepcounter{taskid}
+  \setcounter{tasktotalrows}{#3}%
+	\multirow{\thetasktotalrows}{*}{\textbf{M\thetaskid}}%
+	&#1&&\multirow{\thetasktotalrows}{*}{\textbf{#2}}%
+}
+\fi
+
+%\bscheme{<descriptor>}{<points>}
+\ifOlympMarking
+\NewDocumentCommand{\bscheme}{m m}{%
+    \\ \cline{5-5}\cline{7-7}
+	& --- #1 & #2 &&&&
+}
+\else
+\NewDocumentCommand{\bscheme}{m m}{%
+    \\ % no \cline at all
+	& --- #1 & #2 &
+}
+\fi
+
+%\bremark{<descriptor>}{<points>} --- italicized \bscheme
+\ifOlympMarking
+\NewDocumentCommand{\bremark}{m m}{%
+    \\ % no \cline at all
+	& ---\ --- \textit{#1} & \textit{#2} &&&&
+}
+\else
+\NewDocumentCommand{\bremark}{m m}{%
+    \\ % no \cline at all
+	& ---\ --- \textit{#1} & \textit{#2} &
+}
+\fi
+
+\NewDocumentCommand{\blockend}{}{%
+  % cleanup
+  \setcounter{tasktotalrows}{0}%
+}
+
+% \escheme: "exp-scheme", a standard single-line scheme
+% \escheme{<descriptor>}{<points>}
+\ifOlympMarking
+\NewDocumentCommand{\escheme}{m m}{%
+  \\ \hline \stepcounter{taskid}
+	\textbf{M\thetaskid}%
+	&#1&\multicolumn{2}{|c|}{#2}&&&%
+}
+\else
+\NewDocumentCommand{\escheme}{m m}{%
+  \\ \hline \stepcounter{taskid}
+	\textbf{M\thetaskid}%
+	&#1&\multicolumn{2}{|c|}{#2}%
+}
+\fi
+
+\ifOlympMarking
+\newcommand{\etotal}[1]
+{\\ \hline
+\multicolumn{2}{|l|}{\OlympString{marking_total}}
+  &\multicolumn{2}{|c|}{\textbf{#1}}&&& \\ \hline%
+}
+\else
+\newcommand{\etotal}[1]
+{\\ \hline
+\multicolumn{2}{|l|}{\OlympString{marking_total}}
+  &\multicolumn{2}{|c|}{\textbf{#1}} \\ \hline%
+}
+\fi
+
+\endinput

@@ -1,0 +1,9 @@
+# LaTeX build output (latexmk -outdir=build, see .latexmkrc)
+build/
+
+# build.py dist collection
+dist/
+
+# Python
+__pycache__/
+*.pyc

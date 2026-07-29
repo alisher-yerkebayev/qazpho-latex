@@ -1,3 +1,7 @@
+# ============================================
+# FROZEN PROJECT --- WON'T BE USED FOR A WHILE
+# ============================================
+#
 # extract.py — parse an olympiad problem .tex file into problem.yaml
 # Usage: python extract.py
 
@@ -315,12 +319,18 @@ def process_problem_body(title: str, points: float, slug: str, body: str, tex_pa
             figures_map[fig['id']] = entry
 
     yaml_parts = []
-    for p in parts:
+    # If there is prose or leading LaTeX before any \part or content starts, store it in prefix
+    for idx, p in enumerate(parts):
         if p['title'] is None and not p['content']:
             continue
         part_dict = {}
         if p['title']:
             part_dict['title'] = {lang: p['title']}
+    
+        # Add prefix for preamble/header prose if present in the first part
+        if idx == 0 and 'preamble' in p and p['preamble'].strip():
+            part_dict['prefix'] = {lang: p['preamble'].strip()}
+    
         blocks = []
         for block in p['content']:
             if block['type'] == 'prose':

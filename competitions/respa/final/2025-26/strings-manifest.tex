@@ -1,0 +1,23 @@
+\SetOlympString{city}{%
+    \ifOlympLangRu Астана\fi%
+    \ifOlympLangKz Астана\fi%
+}   % identical in both languages — no branching needed, actually
+
+% ---- from title_ru.tex / title_kz.tex ----
+% manifest.yaml: dates.opening-ceremony=20, dates.closing-ceremony=25, month=3
+\SetOlympString{eventdates}{%
+    \ifOlympLangRu 20--25 марта \OlympYear{} года, г.~\OlympString{city}\fi%
+    \ifOlympLangKz \OlympYear{} жылдың 20-25 наурызы, \OlympString{city}~қ-сы\fi%
+}
+
+% ---- from templates/instructions_students/theory_*.tex ----
+% manifest.yaml: dates.first-tour=21, month=3
+\SetOlympString{touronedate}{%
+    \ifOlympLangRu 21 марта \OlympYear{} года\fi%
+    \ifOlympLangKz 21 наурыз, \OlympYear{} жыл\fi%
+}
+% manifest.yaml: dates.second-tour=22, month=3
+\SetOlympString{tourtwodate}{%
+    \ifOlympLangRu 22 марта \OlympYear{} года\fi%
+    \ifOlympLangKz 22 наурыз, \OlympYear{} жыл\fi%
+}

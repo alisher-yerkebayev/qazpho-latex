@@ -1,0 +1,36 @@
+\SetOlympString{name}{%
+    \ifOlympLangRu Республиканская олимпиада\fi%              % competitions.yaml: name.short.ru
+    \ifOlympLangKz Республикалық олимпиада\fi%                % competitions.yaml: name.short.kz
+}
+\SetOlympString{name_full}{%
+    \ifOlympLangRu \OlympString{name} по предмету Физика\fi%       % competitions.yaml: name.full.ru
+    \ifOlympLangKz Физика пәнi бойынша \OlympString{name}\fi%      % competitions.yaml: name.full.kz
+}
+\SetOlympString{stage}{%
+    \ifOlympLangRu Заключительный этап\fi%     % competitions.yaml: name.stage.ru
+    \ifOlympLangKz Қорытынды кезең\fi%         % competitions.yaml: name.stage.kz
+}
+\SetOlympString{duration}{%                                  % competitions.yaml: tours.{theory,experiment}.duration_hours
+    \ifOlympLangRu%
+        \ifOlympTheory Продолжительность тура --- 5 часов\fi%
+        \ifOlympExperiment Продолжительность тура --- 3 часа\fi%
+    \fi%
+    \ifOlympLangKz%
+        \ifOlympTheory Турдың уақыты --- 5 сағат\fi%
+        \ifOlympExperiment Турдың уақыты --- 3 сағат\fi%      % NOTE: normalized "—" to "---" for consistency; source kz file mixed the two
+    \fi%
+}
+% manifest.yaml: grades.11.theory has 3 entries — a bare digit, same
+% regardless of language, so no \ifOlympLangRu/\ifOlympLangKz needed
+\SetOlympString{problemcount}{3}
+\SetOlympString{problemcount_instructions}
+{
+    \ifOlympTheory
+        \ifOlympLangRu трёх теоретических задач\fi%
+        \ifOlympLangKz үш есептен\fi%
+    \fi%
+    \ifOlympExperiment
+        \ifOlympLangRu одной экспериментальной задачи\fi%
+        \ifOlympLangKz бір есептен тұрады\fi%
+    \fi%
+}

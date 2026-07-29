@@ -1,0 +1,63 @@
+% ---- from olympiad.cls itself (Parts 7-12) ----
+\SetOlympString{problem}{Есеп}
+\SetOlympString{solutions}{Шешiмдер}
+\SetOlympString{hints}{Подсказки}
+\SetOlympString{consts}{Физические константы}
+\SetOlympString{solutionsheader}
+{%
+    \ifOlympTheory ТЕОРИЯЛЫҚ ТУРДЫҢ ШЕШIМI\fi%
+    \ifOlympExperiment ЭКСПЕРИМЕНТАЛДЫҚ ТУРДЫҢ ШЕШIМI\fi%
+}
+\SetOlympString{figlabel}%
+{%
+    \ifOlympProblems%
+    \theproblemnum\printcounter{subproblemnum}.\thefigcounter-сурет.%
+    \fi%
+    \ifOlympSolutions%
+    \thesolnum\printcounter{subsolnum}.\thefigcounter-сурет.%
+    \fi%
+    \ifOlympMarking%
+    \thesolnum\printcounter{subsolnum}.\thefigcounter-сурет.%
+    \fi
+}
+% #1=caption's prefix (unused), #2=figcounter value; optional, guarded by \@ifundefined in the cls
+
+% ---- from olympiad-layout.sty (Part 7 — used on every normal page) ----
+\SetOlympString{name}{Республикалық олимпиада}                 % competitions.yaml: name.short.ru
+\SetOlympString{tourname}
+{%
+    \ifOlympTheory Теориялық тур\fi%
+    \ifOlympExperiment Эксперименталдық тур\fi%
+}
+\SetOlympString{page_abbrev}{б.}
+\SetOlympString{duration}
+{
+    \ifOlympTheory Турдың уақыты --- 5 сағат\fi%
+    \ifOlympExperiment Турдың уақыты — 3 сағат\fi%
+}
+\SetOlympString{organizer}{<<ДАРЫН>> РЕСПУБЛИКАЛЫҚ ҒЫЛЫМИ-ПРАКТИКАЛЫҚ ОРТАЛЫҒЫ} % competitions.yaml: organizer.uppercase.ru
+\SetOlympString{city}{Астана}
+\SetOlympString{firstpagesubtitle}{\OlympString{name}. \OlympString{tourname}, \OlympGrade{} сынып. \OlympString{city} қ-сы, \OlympYear{}}
+
+\SetOlympString{marking_content}{\textbf{Мазмұны}}
+\SetOlympString{marking_total}{\textbf{Барлығы}}
+\SetOlympString{eq_formula}{Формула}
+\SetOlympString{eq_numerical}{Сандық мән}
+\SetOlympString{marking_points}{\textbf{Ұпайлар}}
+\SetOlympString{marking_scheme}{Марк-схема}
+\SetOlympString{grade_text}{сынып}
+\SetOlympString{marking_jury}{Тексеруші}
+\SetOlympString{marking_cipher}{Шифр}
+
+\SetOlympString{points_short}{ұпай}
+\SetOlympString{points_long}{ұпай}
+
+% ---- from title_ru.tex ----
+\SetOlympString{name_full}{Физика пәнi бойынша \OlympString{name}} % competitions.yaml: name.full.ru
+\SetOlympString{stage}{Қорытынды кезең}                              % competitions.yaml: name.stage.ru
+\SetOlympString{eventdates}{\OlympYear{} жылдың 20-25 наурызы, \OlympString{city}~қ-сы}           % manifest.yaml: dates.opening-ceremony (20) .. dates.closing-ceremony (25), month 3, year 2026
+
+% ---- from templates/instructions_students/theory_ru.tex ----
+\SetOlympString{touronedate}{21 наурыз, \OlympYear{} жыл}   % manifest.yaml: dates.first-tour (day 21, month 3), year from dates.year
+\SetOlympString{tourtwodate}{22 наурыз, \OlympYear{} жыл}
+\SetOlympString{problemcount}{3}                   % manifest.yaml: grades.11.theory has 3 entries

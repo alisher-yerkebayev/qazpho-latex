@@ -1,0 +1,17 @@
+city:
+  ru: "Астана"
+  kz: "Астана"
+dates:
+  year: 2026
+  opening-ceremony:
+    day: 20
+    month: 3
+  first-tour:
+    day: 21
+    month: 3
+  second-tour:
+    day: 22
+    month: 3
+  closing-ceremony:
+    day: 25
+    month: 3

@@ -1,3 +1,7 @@
+# ============================================
+# FROZEN PROJECT --- WON'T BE USED FOR A WHILE
+# ============================================
+#
 # insert_translation.py — Merge two translated problem directories into one
 # Usage: python insert_translation.py <folder1> <folder2>
 

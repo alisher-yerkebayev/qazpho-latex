@@ -1,5 +1,5 @@
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{olympiad-layout}[2027/01/01 v1.2 Layout layer]
+\ProvidesPackage{olympiad-layout}[2027/01/01 v1.3 Layout layer]
 
 % ============================================================
 %  olympiad-layout.sty
@@ -8,16 +8,63 @@
 %  Requires: olympiad.cls (loaded first)
 %
 %  CHANGELOG v1.1 -> v1.2
-%    - \OlympFirstPage introduced. \enlargethispage / \textheight
+%    - \problemsheader introduced. \enlargethispage / \textheight
 %      changes placed inside \fancypagestyle{firstpage}{...} were
 %      silent no-ops: that code only runs at \shipout (output
 %      routine) time, well after the page-breaking decision (which
-%      depends on \textheight) has already been made. \OlympFirstPage
+%      depends on \textheight) has already been made. \problemsheader
 %      calls \enlargethispage at the correct time -- in the main
 %      vertical list, before the page breaks -- then sets the page
 %      style. Use it instead of \thispagestyle{firstpage} directly
 %      in title_ru.tex / title_kz.tex / etc.
+%
+%  CHANGELOG v1.2 -> v1.3
+%    - Whole file gated behind \ifOlympStyleRespa (olympiad.cls's new
+%      style=... option, default respa) -- this file was always
+%      respa's own visual convention, never truly competition-
+%      agnostic, so it's now explicit rather than implicit. A future
+%      non-respa style is a sibling \ifOlympStyle...{...}\fi block
+%      appended at the end of this same file, not a new .sty.
+%
+%  STYLE GATING
+%    Everything below (PARTS 1-10) is the "respa" style specifically
+%    -- respa's own page geometry, typography, headers/footers,
+%    figure and answer-box commands, all of it -- gated on
+%    \ifOlympStyleRespa (olympiad.cls, style=respa, the default). It
+%    is NOT competition-agnostic: a different olympiad style with its
+%    own visual conventions gets its OWN \ifOlympStyle...{...}\fi
+%    block, appended below \OlympLayoutMatchedtrue and all, as a
+%    sibling of the respa block -- not nested inside it, and not a
+%    separate .sty file. olympiad.cls stays out of this decision
+%    entirely: it only hosts the style key/conditionals (like
+%    language/tour/type), never branches on style itself.
 % ============================================================
+
+\newif\ifOlympLayoutMatched
+\OlympLayoutMatchedfalse
+
+% \ifOlympShowPoints (used by \answerbox/\answerboxpart, PART 10) MUST
+% be \newif'd out here, BEFORE the \ifOlympStyleRespa gate below, even
+% though it's only ever USED inside the respa-specific block: a
+% \newif'd conditional only becomes a real TeX conditional once its
+% \newif actually RUNS. If both the \newif AND a `\ifOlympShowPoints
+% ... \fi' branch using it sit inside the SAME skipped (style !=
+% respa) region, TeX's low-level \fi-skip scanner -- which matches
+% \if/\fi by each token's CURRENT meaning, blind to macro-argument
+% grouping -- never saw \ifOlympShowPoints become a conditional, so it
+% doesn't count that \if, and the \fi that was meant to close it
+% closes \ifOlympStyleRespa itself instead: skipping ends early and
+% TeX starts executing raw layout code as real content, corrupting
+% the rest of the document with cascading brace/undefined-control-
+% sequence errors. Confirmed by forcing \ifOlympStyleRespa false in a
+% smoke test. Any FUTURE \newif declared anywhere below needs the
+% same treatment: move the bare \newif (not its default-value setting
+% or the commands that flip it) up here.
+\newif\ifOlympShowPoints
+\OlympShowPointstrue
+
+\ifOlympStyleRespa
+\OlympLayoutMatchedtrue
 
 % ============================================================
 % PART 1 — PAGE GEOMETRY
@@ -31,19 +78,56 @@
   top         = 12mm,
   bottom      = 15mm,
   headheight  = 15pt,
-  headsep     = 12pt,
+  headsep     = 6pt,
   footskip    = 15pt,
   includehead,
 }
+
+% type=marking prints a dense, jury-facing scheme table (extra MP/A
+% columns, MP-per-criterion rows -- see olympiad-marking.sty) rather
+% than prose, so it trades the normal reading-friendly margins for
+% tighter ones to fit more table per page. Deliberately a SECOND
+% \geometry{...} call (not baked into the block above) so a plain
+% type=solutions/problems compile keeps its original margins byte-
+% for-byte -- \ifOlympMarking is only known once olympiad.cls (loaded
+% before this package) has run its \DeclareKeys/\ProcessKeyOptions.
+\ifOlympMarking
+  \geometry{
+    left   = 5mm,
+    right  = 5mm,
+    top    = 5mm,
+    bottom = 5mm,
+  }
+\fi
 
 
 % ============================================================
 % PART 2 — TYPOGRAPHY
 % ============================================================
 
-\setlength{\parindent}{18pt}
+\ifOlympProblems\setlength{\parindent}{18pt}\fi
+\ifOlympSolutions\setlength{\parindent}{0pt}\fi
+\ifOlympMarking\setlength{\parindent}{0pt}\fi
 \setlength{\parskip}{0pt}
 \setlength{\intextsep}{0pt}      % no extra space around floats
+
+% Configures the spacing around equations
+%\setlength{\abovedisplayskip}{2pt plus 0pt minus 2pt}
+%\setlength{\belowdisplayskip}{2pt plus 0pt minus 2pt}
+%\setlength{\abovedisplayshortskip}{0pt plus 0pt}
+%\setlength{\belowdisplayshortskip}{2pt plus 0pt minus 2pt}
+
+\ifOlympMarking
+\renewcommand{\normalsize}{\fontsize{11}{12}\selectfont}%
+\normalsize
+\fi
+% Only \normalsize itself is touched (matches the reference marking.tex
+% this was ported from): \small, \footnotesize, \large, etc. keep
+% whatever absolute size article.cls assigned them for the class's
+% ORIGINAL base size -- intentional, not an oversight, since those
+% are mostly used for headings/labels that should stay legible
+% relative to the now-smaller body text, not shrink proportionally
+% with it.
 
 
 % ============================================================
@@ -60,8 +144,8 @@
 \RequirePackage{array}
 \RequirePackage{paracol} % Required for simultaneous parallel columns
 \RequirePackage{multirow}
-\RequirePackage{multicol}
 \RequirePackage{makecell}
+\RequirePackage[normalem]{ulem}
 \RequirePackage{cellspace}
 \setcellgapes{1pt}
 \setlength\cellspacetoplimit{1pt}
@@ -101,6 +185,8 @@
   \setlength{\topsep}{6pt}%
 }
 
+\renewenvironment{center}{\par\centering}{\par}
+% necessary for vertical spacing fine-tuning; can safely be commented out
 
 % ============================================================
 % PART 5 — CAPTION TYPOGRAPHY
@@ -135,45 +221,75 @@
 % ============================================================
 
 \RequirePackage{fancyhdr}
-\pagestyle{fancy}
-\fancyhf{}
 
-% Normal pages — left header
-\fancyhead[L]{%
-  \textbf{%
-    \ifOlympBoth
-      \OlympStringBoth{name}~/~\OlympStringBoth{tourname}%
-    \else
-      \OlympString{name}~\OlympYear/\OlympString{tourname}%
-    \fi
+% ==========================================
+% Define Base/Common Elements (Optional Helper)
+% ==========================================
+% Shared right header (Page n/N)
+\newcommand{\OlympCommonRightHead}{%
+  \fancyhead[R]{\textbf{\OlympString{page_abbrev}~\thepage/\pageref{LastPage}}}%
+}
+
+
+% ==========================================
+% Define Custom Page Styles
+% ==========================================
+
+% 1. "problems" Style
+\fancypagestyle{problems}{%
+  \fancyhf{}% Clear all headers and footers
+  \OlympCommonRightHead%
+  \fancyhead[L]{%
+    \textbf{\OlympString{name}~\OlympYear/\OlympString{tourname}}%
+  }%
+  \fancyfoot[L]{\textbf{\OlympString{duration}}}
+}
+
+% 2. "solutions" Style
+\fancypagestyle{solutions}{%
+  \fancyhf{}% Clear all headers and footers
+  \OlympCommonRightHead%
+  \fancyhead[L]{%
+    \textbf{\OlympString{name}~\OlympYear/\OlympString{tourname}/\OlympString{solutions}}%
   }%
 }
 
-% Normal pages — right header (page n/N)
-\fancyhead[R]{%
-  \textbf{%
-    \ifOlympBoth
-      \OlympStringBoth{page_abbrev}~\thepage/\pageref{LastPage}%
-    \else
-      \OlympString{page_abbrev}~\thepage/\pageref{LastPage}%
-    \fi
+% 3. "answersheets" Style
+\fancypagestyle{answersheets}{%
+  \fancyhf{}% Clear all headers and footers
+  \OlympCommonRightHead%
+  \fancyhead[L]{%
+    \textbf{\OlympString{name}~\OlympYear/\OlympString{tourname}/\OlympString{answersheets}}%
   }%
+  \fancyfoot[L]{\textbf{\OlympString{duration}}}
 }
 
-% Normal pages — left footer (duration)
-\fancyfoot[L]{%
-  \textbf{%
-    \ifOlympBoth
-      \csname OlympStr@duration@kz\endcsname
-      \hfill
-      \csname OlympStr@duration@ru\endcsname
-    \else
+\fancypagestyle{firstpage}{%
+  \fancyhf{}%
+  \addtolength{\headsep}{-\problemsheaderExtra}%
+  \fancyhead[C]{}%
+  \renewcommand{\headrulewidth}{0pt}%
+  \fancyfoot[L]{%
+    \textbf{%
       \OlympString{duration}%
-    \fi
+    }%
   }%
 }
 
-% \OlympFirstPage — use this instead of \thispagestyle{firstpage}
+% ==========================================
+% Initial State Activation
+% ==========================================
+\ifOlympMarking
+  \pagestyle{empty}
+\else
+  \ifOlympSolutions
+    \pagestyle{solutions}
+  \else
+    \pagestyle{problems}
+  \fi
+\fi
+
+% \problemsheader — use this instead of \thispagestyle{firstpage}
 % directly, in title_ru.tex and any other language variant.
 %
 % \enlargethispage must run in the main vertical list, BEFORE the
@@ -185,14 +301,14 @@
 % is fine to keep inside \fancypagestyle, since header/footer
 % positioning genuinely is a shipout-time concern.
 %
-% Both adjustments are tied to \OlympFirstPageExtra so the amount
+% Both adjustments are tied to \problemsheaderExtra so the amount
 % "stolen" from the page and the amount added to \headsep can never
 % drift out of sync.
-\newlength{\OlympFirstPageExtra}
-\setlength{\OlympFirstPageExtra}{6mm}
+\newlength{\problemsheaderExtra}
+\setlength{\problemsheaderExtra}{6mm}
 
-\newcommand{\OlympFirstPage}{%
-  %\enlargethispage{\OlympFirstPageExtra}%
+\newcommand{\problemsheader}{%
+  \setcounter{page}{1}
   \thispagestyle{firstpage}%
   \begin{tabular}[c]{@{}c@{}}
       \textbf{\underline{\OlympString{organizer}}} \\[2pt]
@@ -201,25 +317,25 @@
   \vspace{6pt}
 }
 
-\fancypagestyle{firstpage}{%
-  \fancyhf{}%
-  \addtolength{\headsep}{-\OlympFirstPageExtra}%
-  %\addtolength{\topmargin}{-\OlympFirstPageExtra}%
-  \fancyhead[C]{}%
-  \renewcommand{\headrulewidth}{0pt}%
-  \fancyfoot[L]{%
-    \textbf{%
-      \ifOlympBoth
-        \csname OlympStr@duration@kz\endcsname
-        \hfill
-        \csname OlympStr@duration@ru\endcsname
-      \else
-        \OlympString{duration}%
-      \fi
-    }%
-  }%
+% Solutions block header — emitted once, before first \solution
+\newcommand{\solutionsheader}{%
+  \newpage
+  \thispagestyle{solutions}%
+  \begin{center}
+    \large\textbf{\textit{\OlympString{solutionsheader}}}%
+  \end{center}%
+  \vspace{6pt}
 }
+\newcommand{\answersheetsheader}{%
+  \newpage
+  \pagestyle{answersheets}%
+  \begin{center}
+    {\large\textbf{\OlympString{answersheetsheader}}}%
 
+    \textit{\OlympString{answersheetheadersubtitle}}
+  \end{center}%
+  \vspace{6pt}%
+}
 
 % ============================================================
 % PART 8 — FIGURE COMMANDS
@@ -235,7 +351,7 @@
     \IfValueT{#6}{%
       \vspace{-6pt}%
       \refstepcounter{figcounter}%
-      \expanded{\noexpand\label{fig:\theproblemnum-\thefigcounter}}%
+      \expanded{\noexpand\label{fig:\OlympCurrentPrefix.\thefigcounter}}%
       \captionsetup{width=\linewidth}%
       \caption{\footnotesize\textit{#6}}%
     }%
@@ -249,7 +365,7 @@
     \IfValueT{#3}{%
       \vspace{-6pt}%
       \refstepcounter{figcounter}%
-      \expanded{\noexpand\label{fig:\theproblemnum-\thefigcounter}}%
+      \expanded{\noexpand\label{fig:\OlympCurrentPrefix.\thefigcounter}}%
       \captionsetup{width=\linewidth, hypcap=false}%
       \captionof{figure}{\footnotesize\textit{#3}}%
     }%
@@ -264,7 +380,7 @@
     \IfValueT{#5}{%
       \vspace{-6pt}%
       \refstepcounter{figcounter}%
-      \expanded{\noexpand\label{fig:\theproblemnum-\thefigcounter}}%
+      \expanded{\noexpand\label{fig:\OlympCurrentPrefix.\thefigcounter}}%
       \captionsetup{width=\linewidth, hypcap=false}%
       \captionof{figure}{\footnotesize\textit{#5}}%
     }%
@@ -278,6 +394,154 @@
 \RequirePackage{etoolbox}
 \AtBeginEnvironment{wrapfigure}{%
   \setlength{\emergencystretch}{1em}%
+}
+
+
+% ============================================================
+% PART 10 — ANSWER SHEETS
+% ============================================================
+\RequirePackage{framed}
+\RequirePackage{multicol} \setlength{\multicolsep}{0pt} % for answer sheets
+
+\newlength{\OlympAnswerGap}
+\setlength{\OlympAnswerGap}{\FrameSep} % is used for manual insertion; can be adjusted
+
+\setlength{\OuterFrameSep}{0pt}
+
+% \ifOlympShowPoints itself is \newif'd near the top of this file,
+% OUTSIDE the \ifOlympStyleRespa gate -- see the comment there.
+\newcommand{\OlympNoPoints}{\OlympShowPointsfalse}
+
+\NewDocumentEnvironment{blankbox}{ m }{%
+  \begin{framed}\noindent
+  \begin{minipage}[t][#1][t]{\linewidth}
+  \par\bigskip
+}{%
+  \end{minipage}\end{framed}
+}
+
+% Must require using \problem{...} first
+\NewDocumentEnvironment{answerbox}{ m o }{%
+  \stepcounter{tasknum}%
+  \begin{framed}\noindent
+  \begin{minipage}[t][#1][t]{\linewidth}
+  \noindent\textbf{\OlympCurrentPrefix.\arabic{tasknum}}%
+  \IfValueT{#2}{\ifOlympShowPoints \textbf{(#2~\OlympString{points_answersheet})}\fi}%
+  \par\bigskip
+}{%
+  \end{minipage}\end{framed}
+}
+
+\NewDocumentEnvironment{answerboxpart}{ m o }{%
+  % #1 = height, #2 = optional points
+  \setcounter{tasknum}{0}%
+  \begin{framed}\noindent
+  \begin{minipage}[t][#1][t]{\linewidth}
+  \noindent\textbf{\OlympCurrentPrefix}%
+  \IfValueT{#2}{\ifOlympShowPoints \textbf{(#2~\OlympString{points_answersheet})}\fi}%
+  \par\bigskip
+}{%
+  \end{minipage}\end{framed}
+}
+
+% ...cont = Continuation of the answerbox if there's a pagebreak mid-answerbox
+\NewDocumentEnvironment{answerboxcont}{ m }{%
+  \begin{framed}\noindent\begin{minipage}[t][#1][t]{\linewidth}
+  \noindent\textbf{\OlympCurrentPrefix.\arabic{tasknum}~\OlympString{continued}}%
+  \par\bigskip
+}{\end{minipage}\end{framed}}
+
+\NewDocumentEnvironment{answerboxpartcont}{ m }{%
+  \begin{framed}\noindent\begin{minipage}[t][#1][t]{\linewidth}
+  \noindent\textbf{\OlympCurrentPrefix~\OlympString{continued}}%
+  \par\bigskip
+}{\end{minipage}\end{framed}}
+
+% =================
+% MILLIMETER SCALE FOR EXPERIMENT ANSWER SHEETS
+%
+% Use: \mmgraph{width in cm}{height in cm}
+%
+% =================
+
+\definecolor{gridcolor}{RGB}{250,153,89}
+\newcommand{\mmgraph}[2]{%
+  \begin{tikzpicture}[x=1cm, y=1cm]
+    % 1mm grid (minor thickness: 0.25pt)
+    \draw[step=1mm, line width=0.25pt, gridcolor!50] (0,0) grid (#1,#2);
+    
+    % 5mm grid (medium thickness: 0.6pt)
+    \draw[step=5mm, line width=0.6pt, gridcolor!80] (0,0) grid (#1,#2);
+    
+    % 10mm grid (major thickness: 1pt)
+    \draw[step=10mm, line width=1pt, gridcolor] (0,0) grid (#1,#2);
+  \end{tikzpicture}%
+}
+
+% =======================================
+% \emptygridtab{n}{m}
+%
+% n = number of columns (width)
+% m = number of rows (height)
+%
+% Each grid cell is 1.5cm x 1.0 cm
+%
+\ExplSyntaxOn
+\NewDocumentCommand{\emptygridtab}{mm}
+  {
+    % #1 = number of columns (width)
+    % #2 = number of rows (height)
+    
+    % Begin a tabular with a dynamic number of 1.5cm centered columns
+    \begin{tabular}{|*{#1}{wc{1.5cm}|}}
+      \hline
+      
+      % Loop to generate the rows
+      \prg_replicate:nn { #2 }
+        {
+          % Invisible rule (strut) to force cell height to 1.5cm
+          % Dropped by 0.75cm to keep the baseline perfectly centered
+          \rule[-0.75cm]{0pt}{1cm} 
+          
+          % Loop to generate the correct number of ampersands (&)
+          \prg_replicate:nn { #1 - 1 } { & } 
+          
+          % End the row
+          \\ \hline
+        }
+    \end{tabular}
+  }
+\ExplSyntaxOff
+
+\fi % \ifOlympStyleRespa
+
+% --- future styles get appended here as additional sibling blocks: ---
+% \ifOlympStyleInternational
+% \OlympLayoutMatchedtrue
+%   ...
+% \fi
+
+\ifOlympLayoutMatched\else
+  \PackageWarning{olympiad-layout}
+    { No~layout~is~defined~in~this~package~for~the~active~style~--~
+      check~olympiad.cls's~style=...~option;~olympiad-layout.sty~
+      currently~only~implements~style=respa }
+\fi
+
+\newcommand{\answersheetwritenumbers}%
+{
+  \begin{blankbox}{2.7cm}
+    \vspace{-\OlympAnswerGap}
+    \OlympString{writenumbers}
+    \vspace{\OlympAnswerGap}
+    \begin{center}
+    \begin{tabular}{|*{10}{>{\centering\arraybackslash}p{\dimexpr0.09\linewidth-2\tabcolsep}|}}
+    \hline
+    0&1&2&3&4&5&6&7&8&9\\ \hline
+    &&&&&&&&&\\[0.5cm] \hline
+    \end{tabular}
+    \end{center}
+  \end{blankbox}
 }
 
 \endinput
