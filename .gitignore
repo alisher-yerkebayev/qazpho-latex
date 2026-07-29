@@ -7,3 +7,19 @@ dist/
 # Python
 __pycache__/
 *.pyc
+
+test/
+
+extract-solution.py
+
+extract.py
+
+insert-translation.py
+
+.vs
+
+.vscode
+
+.claude
+
+config

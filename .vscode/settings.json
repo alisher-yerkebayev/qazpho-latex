@@ -1,4 +1,0 @@
-{
-    "python-envs.defaultEnvManager": "ms-python.python:system",
-    "latex-workshop.latex.outDir": "%DIR%/build"
-}
