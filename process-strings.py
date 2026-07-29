@@ -25,6 +25,30 @@ undeclared key doesn't error at compile time -- it just silently vanishes
 from the PDF. The lint this script always runs is the only thing that
 catches that before it ships.
 
+config.yaml / manifest.yaml fields this script actually reads
+---------------------------------------------------------------
+Everything else in those two files (organizer.*, tours.*.name.*, grades,
+languages, has_instructions, has_experiment, ...) is NOT consumed here --
+organizer/tourname/tournamelowercase are tier-1 (hand-written, no YAML
+injection at all; a human copies the value in once and leaves a comment
+pointing at the source field); grades/languages/has_instructions/
+has_experiment aren't read by any current script (scaffolding.py hard-codes
+its own FAMILY_DEFAULTS/SHAPES instead of reading config.yaml at all).
+
+  \\SetOlympString key            <- YAML path (per <family>/<stage>)
+  ------------------------------------------------------------------
+  name                           <- config.yaml: name.<stage>.short.{ru,kz}
+  name_full                      <- config.yaml: name.full.{ru,kz}            (same for every stage, NOT nested under <stage>)
+  stage                          <- config.yaml: name.<stage>.stage.{ru,kz}
+  duration                       <- config.yaml: tours.{theory,experiment}.duration.<stage>   (or a flat value shared by every stage, e.g. tours.experiment.problem_count)
+  problemcount                   <- config.yaml: tours.theory.problem_count.<stage>
+  problemcount_instructions      <- config.yaml: tours.{theory,experiment}.problem_count.<stage>
+
+  city                           <- manifest.yaml: city.{ru,kz}
+  eventdates                     <- manifest.yaml: dates.opening-ceremony.{day,month}, dates.closing-ceremony.{day,month}   (+ dates.year, via \\OlympYear{} at compile time, not read here)
+  touronedate                    <- manifest.yaml: dates.first-tour.{day,month}
+  tourtwodate                    <- manifest.yaml: dates.second-tour.{day,month}
+
 Usage:
     python process-strings.py <year_dir> [--check-only]
 
@@ -167,30 +191,41 @@ def parse_year_dir(year_dir: Path) -> tuple[str, str, str]:
 # config.yaml's already-unwrapped per-family dict.
 # ============================================================
 def _tier2_name(family: str, cfg: dict, stage: str) -> str:
-    short = cfg["name"]["short"]
+    # "short" is nested UNDER each stage (name.<stage>.short), not shared
+    # across stages -- раion/oblast/final genuinely have different short
+    # names ("Районная олимпиада" vs "Республиканская олимпиада"), unlike
+    # "full" below, which is the same for every stage.
+    short = cfg["name"][stage]["short"]
     return (
         "\\SetOlympString{name}{%\n"
-        f"    \\ifOlympLangRu {short['ru']}\\fi%              % config.yaml: {family}.name.short.ru\n"
-        f"    \\ifOlympLangKz {short['kz']}\\fi%                % config.yaml: {family}.name.short.kz\n"
+        f"    \\ifOlympLangRu {short['ru']}\\fi%              % config.yaml: {family}.name.{stage}.short.ru\n"
+        f"    \\ifOlympLangKz {short['kz']}\\fi%                % config.yaml: {family}.name.{stage}.short.kz\n"
         "}"
     )
 
 
 def _tier2_name_full(family: str, cfg: dict, stage: str) -> str:
+    # Unlike "short"/"stage", "full" is NOT nested per-stage -- it's the
+    # olympiad program's one overarching official name, constant
+    # regardless of which stage this is. Read it directly rather than
+    # composing "\OlympString{name} + suffix" (name itself now varies
+    # per stage, so that composition would silently produce the wrong
+    # text for every stage except whichever one happens to match).
+    full = cfg["name"]["full"]
     return (
         "\\SetOlympString{name_full}{%\n"
-        f"    \\ifOlympLangRu \\OlympString{{name}} по предмету Физика\\fi%       % config.yaml: {family}.name.full.ru\n"
-        f"    \\ifOlympLangKz Физика пәнi бойынша \\OlympString{{name}}\\fi%      % config.yaml: {family}.name.full.kz\n"
+        f"    \\ifOlympLangRu {full['ru']}\\fi%       % config.yaml: {family}.name.full.ru\n"
+        f"    \\ifOlympLangKz {full['kz']}\\fi%      % config.yaml: {family}.name.full.kz\n"
         "}"
     )
 
 
 def _tier2_stage(family: str, cfg: dict, stage: str) -> str:
-    stage_text = cfg["name"]["stage"][stage]
+    stage_text = cfg["name"][stage]["stage"]
     return (
         "\\SetOlympString{stage}{%\n"
-        f"    \\ifOlympLangRu {stage_text['ru']}\\fi%     % config.yaml: {family}.name.stage.{stage}.ru\n"
-        f"    \\ifOlympLangKz {stage_text['kz']}\\fi%         % config.yaml: {family}.name.stage.{stage}.kz\n"
+        f"    \\ifOlympLangRu {stage_text['ru']}\\fi%     % config.yaml: {family}.name.{stage}.stage.ru\n"
+        f"    \\ifOlympLangKz {stage_text['kz']}\\fi%         % config.yaml: {family}.name.{stage}.stage.kz\n"
         "}"
     )
 
