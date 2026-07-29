@@ -25,7 +25,7 @@ respa:
       kz: "«ДАРЫН» РЕСПУБЛИКАЛЫҚ ҒЫЛЫМИ-ПРАКТИКАЛЫҚ ОРТАЛЫҒЫ"
   grades: [9, 10, 11]
   languages: [ru, kz]
-  instructions: true
+  has_instructions: true
   tours:
     theory:
       name:
@@ -43,6 +43,10 @@ respa:
         final: 3
         oblast: 4
         raion: 4
+      has_experiment:
+        final: true
+        oblast: true
+        raion: false
     experiment:
       name:
         normal:

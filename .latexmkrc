@@ -1,10 +1,10 @@
 # This is the ONE real .latexmkrc for the whole project -- every
 # competition/language directory's own .latexmkrc is just a stub that
 # does `do "$root/.latexmkrc"` to load THIS file (see
-# competitions/scaffolding-respa.py's render_latexmkrc() for why a stub
-# has to exist in each directory at all: latexmk only reads .latexmkrc
-# from system/$HOME/cwd, never from parent directories, so there's no
-# way to make a single file "just be found" from every subdirectory).
+# scaffolding.py's render_latexmkrc() for why a stub has to exist in
+# each directory at all: latexmk only reads .latexmkrc from
+# system/$HOME/cwd, never from parent directories, so there's no way
+# to make a single file "just be found" from every subdirectory).
 # Change TEXINPUTS/pdf_mode/etc. here and every stub picks it up.
 
 # 1. Ask Git for the absolute path to the repository root

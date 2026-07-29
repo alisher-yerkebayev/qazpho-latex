@@ -513,21 +513,6 @@
   }
 \ExplSyntaxOff
 
-\fi % \ifOlympStyleRespa
-
-% --- future styles get appended here as additional sibling blocks: ---
-% \ifOlympStyleInternational
-% \OlympLayoutMatchedtrue
-%   ...
-% \fi
-
-\ifOlympLayoutMatched\else
-  \PackageWarning{olympiad-layout}
-    { No~layout~is~defined~in~this~package~for~the~active~style~--~
-      check~olympiad.cls's~style=...~option;~olympiad-layout.sty~
-      currently~only~implements~style=respa }
-\fi
-
 \newcommand{\answersheetwritenumbers}%
 {
   \begin{blankbox}{2.7cm}
@@ -543,5 +528,20 @@
     \end{center}
   \end{blankbox}
 }
+
+\fi % \ifOlympStyleRespa
+
+% --- future styles get appended here as additional sibling blocks: ---
+% \ifOlympStyleInternational
+% \OlympLayoutMatchedtrue
+%   ...
+% \fi
+
+\ifOlympLayoutMatched\else
+  \PackageWarning{olympiad-layout}
+    { No~layout~is~defined~in~this~package~for~the~active~style~--~
+      check~olympiad.cls's~style=...~option;~olympiad-layout.sty~
+      currently~only~implements~style=respa }
+\fi
 
 \endinput
