@@ -30,11 +30,14 @@ under XeLaTeX (`-pdfxe`) -- olympiad.cls requires it (fontspec-based
 per-style fonts; see olympiad.cls's v1.5 changelog).
 
 "dist" names each copied PDF {family}_{stage}{year}_{grade}_{stem}_{lang}.pdf,
-e.g. respa_final2026_11_theory_answer_ru.pdf -- family/stage come from
-year_dir's own path, year comes from manifest.yaml's dates.year (the
-calendar year actually being built for, not the "2025-26"-style academic
-year folder name), grade/lang come from the two path components directly
-above each build/ folder, and stem is the PDF's own filename stem.
+e.g. respa_final2026_11_theory_answer_ru.pdf -- family/stage are the two
+path components directly above year_dir (year_dir itself need not live
+under any particular folder, e.g. both competitions/respa/final/2025-26
+and shared/example/respa/final/2025-26 work), year comes from
+manifest.yaml's dates.year (the calendar year actually being built for,
+not the "2025-26"-style academic year folder name), grade/lang come from
+the two path components directly above each build/ folder, and stem is
+the PDF's own filename stem.
 
 "dist" skips any *_jury.pdf (theory_jury.pdf/experiment_jury.pdf,
 type=jury -- the internal, jury-only dense scheme table with fields
@@ -42,6 +45,15 @@ for the grader's name/cipher, see olympiad-marking.sty's \\juryheader):
 those aren't meant to leave the grading room, unlike the optional,
 student-facing *_marking.pdf (type=marking) built from the same
 marking.tex fragments, which IS meant for dist.
+
+Before copying anything, "dist" also checks year_dir's grade folders
+against scaffolding.py's FAMILY_DEFAULTS (the same table scaffolding.py
+itself scaffolds every grade from) -- if the family is a known one and
+some declared grade's folder is missing entirely (e.g. only 11/ exists
+where respa declares grades 9/10/11), it warns and asks for confirmation
+before proceeding, since that's usually an unfinished build rather than
+an intentional partial release. Unknown (custom) families have no
+declared grade list to check against, so this is skipped for them.
 """
 
 from __future__ import annotations
@@ -57,6 +69,7 @@ try:
 except ImportError:
     sys.exit("PyYAML is required: pip install pyyaml")
 
+from scaffolding import FAMILY_DEFAULTS, ask_yes_no
 
 REPO_ROOT = Path(__file__).resolve().parent
 
@@ -148,23 +161,47 @@ def cmd_compile(target: Path) -> None:
 # dist
 # ============================================================
 def parse_year_dir(year_dir: Path) -> tuple[str, str, str]:
+    """family/stage/year_name are just the 3 path components directly
+    above year_dir -- this doesn't require year_dir to live under any
+    particular parent folder (competitions/, shared/example/, ...)."""
     year_dir = year_dir.resolve()
-    try:
-        rel_parts = year_dir.relative_to(REPO_ROOT / "competitions").parts
-    except ValueError:
-        raise SystemExit(f"{year_dir} is not inside {REPO_ROOT / 'competitions'}")
-    if len(rel_parts) != 3:
+    parts = year_dir.parts
+    if len(parts) < 3:
         raise SystemExit(
-            f"Expected competitions/<family>/<stage>/<year> (3 levels under "
-            f"competitions/), got {year_dir} ({len(rel_parts)} level(s))."
+            f"Expected a <family>/<stage>/<year> path (e.g. "
+            f"competitions/respa/final/2025-26), got {year_dir}."
         )
-    family, stage, year_name = rel_parts
+    family, stage, year_name = parts[-3], parts[-2], parts[-1]
     return family, stage, year_name
+
+
+def check_declared_grades(family: str, year_dir: Path) -> None:
+    """Warn (and ask for confirmation) if year_dir is missing a grade
+    folder that scaffolding.py's FAMILY_DEFAULTS says this family
+    normally has -- e.g. only 11/ present where respa declares grades
+    9/10/11. Unknown (custom) families aren't in FAMILY_DEFAULTS at
+    all, so there's nothing to check them against; this silently does
+    nothing for them."""
+    declared = FAMILY_DEFAULTS.get(family, {}).get("grades")
+    if not declared:
+        return
+    present = {p.name for p in year_dir.iterdir() if p.is_dir() and p.name != "dist"}
+    missing = [g for g in declared if str(g) not in present]
+    if not missing:
+        return
+    print(
+        f"WARNING: {family} normally has grades {declared}, but "
+        f"{year_dir.relative_to(REPO_ROOT)} is missing grade(s) {missing} "
+        f"(only {sorted(present, key=str)} present)."
+    )
+    if not ask_yes_no("Proceed with dist anyway?", default=False):
+        raise SystemExit("Aborted -- nothing copied.")
 
 
 def cmd_dist(year_dir: Path) -> None:
     family, stage, _year_name = parse_year_dir(year_dir)
     year_dir = year_dir.resolve()
+    check_declared_grades(family, year_dir)
 
     manifest_path = year_dir / "manifest.yaml"
     if not manifest_path.is_file():

@@ -12,7 +12,7 @@ SOME marking scheme; a SEPARATE, student-facing type=marking document
 (theory_marking.tex/experiment_marking.tex -- \\markingheader once, then
 placeholder-titled \\solution/\\subsolution calls per problem, same
 workflow as every other stub) is optional -- see HAS_STUDENT_MARKING
-for respa/respa_junior, or the interactive prompt for a custom family.
+for respa, or the interactive prompt for a custom family.
 
 Unlike its predecessor (competitions/scaffolding-respa.py, now
 deleted), this script does not hard-code which competition families
@@ -21,15 +21,15 @@ asks you, interactively, every time it runs:
 
   - which academic year this is for (it derives the "yyyy-yy" folder
     name from the calendar year the academic year starts in)
-  - respa / respa_junior / a custom family, and which stage
+  - respa / a custom family, and which stage
   - (custom only) grades, languages, and the tour layout: either the
     standard theory/experiment split (with however many problems, and
     however many сombined "солянка" sub-parts each has), or a bare
     tour1/tour2/.../tourN split for a format that doesn't fit that mold
 
-respa and respa_junior keep their known shape (problem counts,
-солянка splits, which stages get answer sheets) exactly as
-scaffolding-respa.py had them hard-coded -- see FAMILY SHAPES below --
+respa keeps its known shape (problem counts, солянка splits, which
+stages get answer sheets) exactly as scaffolding-respa.py had it
+hard-coded -- see FAMILY SHAPES below --
 because that structural data doesn't change from run to run and isn't
 config.yaml's job to carry. What config.yaml *did* carry for those two
 families (grades, languages, whether there's an instructions page) is
@@ -69,7 +69,7 @@ COMPETITIONS_ROOT = REPO_ROOT / "competitions"
 
 
 # ============================================================
-# FAMILY SHAPES -- respa / respa_junior structural data
+# FAMILY SHAPES -- respa structural data
 # ============================================================
 # This is the one place that answers "how many problems does this
 # stage have, and how are they named" for the two known families.
@@ -106,17 +106,15 @@ SHAPES: dict[str, Shape] = {
 }
 
 # ------------------------------------------------------------------
-# Which stage uses which shape. Add a row here whenever a new respa/
-# respa_junior stage is introduced, or decides to reuse one of the
-# shapes above (or add a new one in SHAPES). This is also the source
-# of truth for which stages exist under each family -- the "which
-# stage?" prompt below only offers stages listed here.
+# Which stage uses which shape. Add a row here whenever a new respa
+# stage is introduced, or decides to reuse one of the shapes above (or
+# add a new one in SHAPES). This is also the source of truth for which
+# stages exist under respa -- the "which stage?" prompt below only
+# offers stages listed here.
 SHAPE_BY_PATH: dict[tuple[str, str], str] = {
     ("respa", "final"): "respa_final",
     ("respa", "oblast"): "respa_oblast",
     ("respa", "raion"): "four_theory_only",
-    ("respa_junior", "final"): "four_theory_only",
-    ("respa_junior", "oblast"): "four_theory_only",
 }
 
 # ------------------------------------------------------------------
@@ -172,7 +170,6 @@ FIRST_HALF_YEAR: set[tuple[str, str]] = {
 # asked for its grades/languages/instructions directly instead.
 FAMILY_DEFAULTS: dict[str, dict] = {
     "respa": {"grades": [9, 10, 11], "languages": ["ru", "kz"], "instructions": True},
-    "respa_junior": {"grades": [7, 8], "languages": ["ru", "kz"], "instructions": True},
 }
 
 
@@ -752,11 +749,10 @@ def main() -> None:
 
     family = choose("Which olympiad format is this?", [
         ("respa", "respa"),
-        ("respa_junior", "respa_junior"),
         ("custom", "custom (a new competition family)"),
     ])
 
-    if family in ("respa", "respa_junior"):
+    if family == "respa":
         stage_options = [s for s in ("raion", "oblast", "final") if (family, s) in SHAPE_BY_PATH]
         subcomp = choose(f"Which stage of {family}?", [(s, s) for s in stage_options])
         comp = family
@@ -770,7 +766,7 @@ def main() -> None:
     print(f"-> folder: competitions/{comp}/{subcomp}/{year_name}")
     confirm_year_dir(year_dir)
 
-    if family in ("respa", "respa_junior"):
+    if family == "respa":
         shape = SHAPES[SHAPE_BY_PATH[(comp, subcomp)]]
         defaults = FAMILY_DEFAULTS[family]
         first_half = (comp, subcomp) in FIRST_HALF_YEAR
