@@ -1,20 +1,23 @@
 \documentclass[
-  language=kz,
-  year=2026,
-  grade=11,
-  tour=experiment,
-  type=problems,
+  language=ru, 
+  year=2026,   
+  grade=11,     
+  tour=experiment, 
+  type=jury,
   style=respa
 ]{olympiad}
 
 \usepackage{olympiad-layout}
-\usepackage{olympiad-units-kz}
+\usepackage{olympiad-units-ru}
+\usepackage{olympiad-marking}
 
 \input{shared/example/respa/strings-config.tex}
 \input{shared/example/respa/final/strings-competition.tex}
 \input{shared/example/respa/final/2025-26/strings-manifest.tex}
 
 \begin{document}
-\answersheetsheader
-\input{E1/answer.tex}
+
+\juryheader
+\input{E1/marking.tex}
+
 \end{document}

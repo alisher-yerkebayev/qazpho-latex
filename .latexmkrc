@@ -31,7 +31,17 @@ if (!$root) {
 $ENV{'TEXINPUTS'} = "$root/;" .
                     "$root/shared/;" .
                     "$root/units//;" .
-                    "../;" . 
+                    "../;" .
                     ($ENV{'TEXINPUTS'} // '');
 
-$pdf_mode = 1;
+# 4. Same idea, but for font FILES rather than .sty/.tex input: XeTeX's
+#    font manager (via fontspec) falls back to a kpathsea search on
+#    these two variables when a bare filename isn't found as an
+#    installed system font -- e.g. olympiad-layout.sty's style=ipho
+#    block loading NotoSans-Regular.ttf by filename, with no Path= key,
+#    because (like TEXINPUTS above) a relative Path= would break
+#    depending on how deep a document's compile directory is nested.
+$ENV{'OPENTYPEFONTS'} = "$root/shared/fonts//;" . ($ENV{'OPENTYPEFONTS'} // '');
+$ENV{'TTFONTS'}       = "$root/shared/fonts//;" . ($ENV{'TTFONTS'} // '');
+
+$pdf_mode = 5; # XeLaTeX -- olympiad.cls requires it (fontspec-based per-style fonts)

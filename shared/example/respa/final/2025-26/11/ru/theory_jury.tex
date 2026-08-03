@@ -1,30 +1,35 @@
 \documentclass[
-  language=kz,
+  language=ru,
   year=2026,
   grade=11,
   tour=theory,
-  type=problems,
+  type=jury,
   style=respa
 ]{olympiad}
 
 \usepackage{olympiad-layout}
-\usepackage{olympiad-units-kz}
+\usepackage{olympiad-units-ru}
+\usepackage{olympiad-marking}
 
 \input{shared/example/respa/strings-config.tex}
 \input{shared/example/respa/final/strings-competition.tex}
 \input{shared/example/respa/final/2025-26/strings-manifest.tex}
 
 \begin{document}
-\answersheetsheader
 
-\problem{\OlympString{soljanka}}{10.0}
-\input{T1A/answer.tex}
-\input{T1B/answer.tex}
-\input{T1C/answer.tex}
-
-\newpage
-\input{T2/answer.tex}
+\juryheader
+\input{T1A/marking.tex}
+\input{T1B/marking.tex}
+\input{T1C/marking.tex}
 
 \newpage
-\input{T3/answer.tex}
+
+\juryheader
+\input{T2/marking.tex}
+
+\newpage
+
+\juryheader
+\input{T3/marking.tex}
+
 \end{document}

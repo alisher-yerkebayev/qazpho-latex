@@ -1,15 +1,13 @@
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{olympiad}[2027/01/01 v1.4 Competition-agnostic olympiad class]
+\ProvidesClass{olympiad}[2027/01/01 Competition-agnostic olympiad class]
 
 % ============================================================
-%  olympiad.cls  —  v1.3
-%  Competition-agnostic, language-agnostic class for olympiad
+%  olympiad.cls
+%  Competition-, language-, and style-agnostic class for olympiad
 %  documents.
 %
 %  Design contract:
 %    - No hardcoded natural-language strings anywhere in this file
-%    - No grade-specific commands (\nineth etc.)
-%    - No grammatical agreement logic
 %    - No competition-specific layout
 %    - Problem/solution numbering is injected by build.py;
 %      LaTeX counters track only intra-document sub-items
@@ -19,101 +17,27 @@
 %    2. \ifOlymp... conditionals for layout files to branch on
 %    3. \OlympLang — single active language code (ru / kz / ...)
 %    4. \OlympString{key} — language-neutral slot accessor
-%    5. task environment + tasknum / tasksolnum counters
-%    6. \problem, \solution, \subproblem — structural commands
-%    7. \tasksol, \taskref, \solref
-%    8. Caption label format hook
+%    5. problemnum/solnum/tasknum/... counters and \OlympCurrentPrefix
+%    6. Caption label format hook
 %
 %  Depends on:  expl3, xparse, etoolbox, caption, babel
 %  Does NOT load: geometry, fancyhdr, enumitem, siunitx,
 %                 tikz, graphicx, amsmath, hyperref, ...
-%                 (those belong in olympiad-layout / olympiad-math)
-%
-%  CHANGELOG v1.2 -> v1.3
-%    - Option processing rewritten to use the LaTeX kernel's own
-%      \DeclareKeys / \ProcessKeyOptions (available since the
-%      2022-06-01 LaTeX release) instead of the now-obsolete
-%      l3keys2e package's \ProcessKeysOptions. The old mechanism
-%      is documented to suffer from "space stripping and expansion
-%      issues" -- this is exactly what caused the
-%      "Missing \begin{document}" / leaked "olympiad" text bug and
-%      is the prime suspect for the infinite-compile hang. See
-%      https://ctan.org/pkg/l3keys2e and LaTeX News 35.
-%    - \RequirePackage{l3keys2e} removed: no longer needed, the
-%      replacement is built directly into the format.
-%
-%  CHANGELOG v1.3 patches (this revision)
-%    - \solution was declared \newcommand{\solution}[3]{...} but
-%      the body only ever uses #1/#2, and every real call site
-%      supplies 2 arguments. Since LaTeX doesn't validate that a
-%      call supplies as many arguments as were declared, this made
-%      \solution{Title}{Points} silently swallow whatever token or
-%      group came NEXT in the source as its unused #3 -- often a
-%      \subproblem/\subsolution call, sometimes worse. Fixed to
-%      \newcommand{\solution}[2]{...}. If you ever see a
-%      \subproblem/\subsolution/\tasksol call "disappear" and its
-%      own braced arguments leak out as plain text right after a
-%      \problem/\solution call, check this arity mismatch first --
-%      it's a very easy one to reintroduce by copy-pasting a
-%      3-argument-shaped comment onto a genuinely 2-argument macro.
-%    - \newline in \subproblem/\subsolution replaced with \par: a
-%      \newline (== a low-level \\) requires being mid-paragraph
-%      (horizontal mode); right after a \centerline-based heading
-%      TeX is in vertical mode with no "current line" to end, so
-%      \newline there raised a hard "There's no line here to end"
-%      the moment ANY blank line appeared before the next
-%      \subproblem/\subsolution in the source (a blank line is
-%      \par, and \par landing in vertical mode is what exposed the
-%      dangling \newline). \par is always safe in both modes.
-%    - New \OlympCurrentPrefix (see below \figref for the
-%      rationale): the one and only place "which problem/subproblem
-%      or solution/subsolution block are we in" gets computed.
-%      \thefigure, \figref, \pic/\cpic/\cpics (olympiad-layout.sty)
-%      and the eq environment/\eqref (olympiad-marking.sty) all
-%      call it instead of each reconstructing the same
-%      \ifOlympProblems/\ifOlympSolutions branch locally -- two
-%      independent reconstructions of this string had drifted out
-%      of sync, which is why \figref was returning "??".
-%
-%  CHANGELOG v1.3 -> v1.4
-%    - New style=... option (default respa), processed exactly like
-%      language/tour/type: a \g__olymp_style_<name>_bool per known
-%      style plus a bridged \ifOlympStyle<Name> conditional. Lets
-%      layout packages (olympiad-layout.sty) gate their ENTIRE body
-%      on "which competition-family's visual convention is active"
-%      instead of being implicitly respa-only. olympiad.cls itself
-%      never branches on style -- it only hosts the option, matching
-%      its own "no competition-specific layout" design contract.
+%                 (those belong in olympiad-layout)
 % ============================================================
+
+\RequirePackage{iftex}
+\ifXeTeX\else
+  \ClassError{olympiad}
+    { This~class~requires~XeLaTeX }
+    { Compile~with~xelatex,~e.g.~`latexmk~-pdfxe'~(this~project's~
+      build.py~and~.latexmkrc~already~do~this~by~default). }
+\fi
 
 \RequirePackage{expl3}
 
 % ============================================================
-% PART 1 — KEY-VALUE OPTION PROCESSING
-% ============================================================
-%
-% expl3 PRIMER for this file:
-%   \ExplSyntaxOn/Off — switch expl3 mode (spaces ignored, _ : are letters)
-%   \bool_new:N \g__foo_bar_bool  — declare a global boolean, initially false
-%   \bool_gset_true:N \g__foo_bar_bool — set it true
-%   \str_case:nnF {value} { {case}{code} ... } {fallback} — expandable
-%     string switch; the fallback branch runs if nothing matched
-%   \DeclareKeys { key .code:n = {...} , ... } — kernel key-value
-%     declaration (successor to l3keys2e's \keys_define:nn)
-%   \ProcessKeyOptions — parse \documentclass[...] options against the
-%     keys above, using the current class name as the key "family"
-%     automatically (no l3keys2e-style {module} argument needed)
-%
-% \DeclareKeys has no built-in "choice" property (unlike l3keys), so
-% each multi-valued option below is a single .code:n key that
-% validates its own value with \str_case:nnF and raises \ClassError
-% on anything unrecognised.
-%
-% DEFAULTS: \ProcessKeyOptions only ever runs the .code:n of an
-% option that the user actually supplied. Defaults are therefore
-% simply the booleans' initial state, set explicitly below, *before*
-% \ProcessKeyOptions runs -- there is no separate ".default:n" to
-% maintain in parallel, so defaults and reality cannot drift apart.
+% KEY-VALUE OPTION PROCESSING
 % ============================================================
 
 \ExplSyntaxOn
@@ -123,41 +47,32 @@
 \bool_new:N \g__olymp_problems_bool
 \bool_new:N \g__olymp_solutions_bool
 \bool_new:N \g__olymp_marking_bool
+\bool_new:N \g__olymp_jury_bool
 \int_new:N  \g__olymp_grade_int
 \int_new:N  \g__olymp_year_int
 
 \tl_new:N   \g__olymp_font_tl % font size string
 
 % Language booleans: one per supported language code.
-% Adding a new language later only requires adding a bool here
-% and a case entry in the "language" key below — nothing else changes.
 \bool_new:N \g__olymp_lang_ru_bool
 \bool_new:N \g__olymp_lang_kz_bool
 
-% Style booleans: one per supported VISUAL layout style. A "style" is
-% a whole competition-family's typographic/page-design convention
-% (page geometry, headers/footers, figure and answer-box commands,
-% ...) implemented in olympiad-layout.sty (or a sibling layout
-% package) behind a matching \ifOlympStyle... conditional. Adding a
-% new style later only requires adding a bool here and a case entry
-% in the "style" key below -- the layout package itself then gates
-% its own body on the resulting \ifOlympStyle... flag.
-\bool_new:N \g__olymp_style_bool
+% Style booleans: one per supported VISUAL layout style.
+\bool_new:N \g__olymp_style_respa_bool
+\bool_new:N \g__olymp_style_ipho_bool % new boolean v1.5-> v1.6
 
 % ---- set the documented defaults: language=ru, tour=theory,      ----
 % ---- grade=11, type=problems, style=respa, font=12pt, year=2026  ----
 \bool_gset_true:N \g__olymp_lang_ru_bool
 \bool_gset_true:N \g__olymp_theory_bool
 \bool_gset_true:N \g__olymp_problems_bool
-\bool_gset_true:N \g__olymp_style_bool
-\int_gset:Nn \g__olymp_grade_int {11}
+\bool_gset_true:N \g__olymp_style_respa_bool
+\int_gset:Nn \g__olymp_grade_int {11} % fallback default
 \int_gset:Nn \g__olymp_year_int {\the\year} % current year by default
-\tl_gset:Nn \g__olymp_font_tl {12pt}
+\tl_gset:Nn \g__olymp_font_tl {11pt} % 11pt as a fallback default
 
 \DeclareKeys
   {
-    font .tl_gset:N = \g__olymp_font_tl,
-
     language .code:n = {
       \str_case:nnF {#1}
         {
@@ -209,22 +124,31 @@
             \bool_gset_true:N  \g__olymp_problems_bool
             \bool_gset_false:N \g__olymp_solutions_bool
             \bool_gset_false:N \g__olymp_marking_bool
+            \bool_gset_false:N \g__olymp_jury_bool
           }
           {solutions} {
             \bool_gset_false:N \g__olymp_problems_bool
             \bool_gset_true:N  \g__olymp_solutions_bool
             \bool_gset_false:N \g__olymp_marking_bool
+            \bool_gset_false:N \g__olymp_jury_bool
           }
           {marking}   {
             \bool_gset_false:N \g__olymp_problems_bool
             \bool_gset_false:N \g__olymp_solutions_bool
-            \bool_gset_true:N  \g__olymp_marking_bool
+            \bool_gset_true:N \g__olymp_marking_bool
+            \bool_gset_false:N  \g__olymp_jury_bool
+          }
+          {jury}   {
+            \bool_gset_false:N \g__olymp_problems_bool
+            \bool_gset_false:N \g__olymp_solutions_bool
+            \bool_gset_false:N \g__olymp_marking_bool
+            \bool_gset_true:N  \g__olymp_jury_bool
           }
         }
         {
           \ClassError{olympiad}
             { Unknown~value~`#1'~for~key~`type' }
-            { Use~type=problems,~type=solutions,~or~type=marking. }
+            { Use~type=problems,~type=solutions,~type=marking,~or~type=jury. }
         }
     } ,
 
@@ -236,38 +160,31 @@
     style .code:n = {
       \str_case:nnF {#1}
         {
-          {respa} { \bool_gset_true:N \g__olymp_style_bool }
+          {respa} {
+            \bool_gset_true:N  \g__olymp_style_respa_bool
+            \bool_gset_false:N \g__olymp_style_ipho_bool
+          }
+          {ipho} {
+            \bool_gset_false:N \g__olymp_style_respa_bool
+            \bool_gset_true:N  \g__olymp_style_ipho_bool
+          }
         }
         {
           \ClassError{olympiad}
             { Unknown~value~`#1'~for~key~`style' }
-            { Use~style=respa~(more~styles~can~be~added~here~as~olympiad-layout.sty~grows~support~for~them). }
+            { Use~style=respa/ipho~(more~styles~can~be~added~here~as~olympiad-layout.sty~grows~support~for~them). }
         }
     } ,
   }
 
 \ProcessKeyOptions
 
-\LoadClass[\g__olymp_font_tl]{article}
-
-\RequirePackage{siunitx}         % loaded first — owns the S column
-\RequirePackage{physics2}
-\usephysicsmodule{ab}
-
-\RequirePackage{xparse}
-\RequirePackage{etoolbox}
-\RequirePackage{caption}
 
 \ExplSyntaxOff
 
 
 % ============================================================
-% PART 2 — BRIDGE TO CLASSIC CONDITIONALS
-% ============================================================
-%
-% \bool_if:NTF \g__olymp_foo_bool { true } { false }
-% translates each expl3 bool into a classic \newif pair.
-% After this block no expl3 syntax is needed in layout files.
+% BRIDGE TO CLASSIC CONDITIONALS
 % ============================================================
 
 \ExplSyntaxOn
@@ -287,6 +204,9 @@
 \newif\ifOlympMarking
 \bool_if:NTF \g__olymp_marking_bool    { \OlympMarkingtrue    } { \OlympMarkingfalse    }
 
+\newif\ifOlympJury
+\bool_if:NTF \g__olymp_jury_bool    { \OlympJurytrue    } { \OlympJuryfalse    }
+
 % Per-language conditionals — one pair per supported language.
 % Layout files use \ifOlympLangRu ... \fi
 \newif\ifOlympLangRu
@@ -295,20 +215,35 @@
 \newif\ifOlympLangKz
 \bool_if:NTF \g__olymp_lang_kz_bool { \OlympLangKztrue } { \OlympLangKzfalse }
 
-% Style conditionals — one pair per supported layout style. Layout
+% Style conditionals — one pair per supported layout style, each
+% bridged from its OWN boolean (see the Part 1 comment above). Layout
 % packages use \ifOlympStyleRespa ... \fi to gate their own body.
 \newif\ifOlympStyleRespa
-\bool_if:NTF \g__olymp_style_bool { \OlympStyleRespatrue } { \OlympStyleRespafalse }
+\bool_if:NTF \g__olymp_style_respa_bool { \OlympStyleRespatrue } { \OlympStyleRespafalse }
+\newif\ifOlympStyleIpho
+\bool_if:NTF \g__olymp_style_ipho_bool { \OlympStyleIphotrue } { \OlympStyleIphofalse }
+
+\ifOlympStyleRespa \tl_gset:Nn \g__olymp_font_tl {12pt} \fi
+\ifOlympStyleIpho \tl_gset:Nn \g__olymp_font_tl {9pt} \fi
 
 % \OlympGrade — plain integer macro, usable in headers and \edef
 \edef\OlympGrade { \int_use:N \g__olymp_grade_int }
 \edef\OlympYear { \int_use:N \g__olymp_year_int }
 
+\LoadClass[\g__olymp_font_tl]{article}
+
 \ExplSyntaxOff
 
+\RequirePackage{siunitx}         % loaded first — owns the S column
+\RequirePackage{physics2}
+\usephysicsmodule{ab}
+
+\RequirePackage{xparse}
+\RequirePackage{etoolbox}
+\RequirePackage{caption}
 
 % ============================================================
-% PART 3 — \OlympLang AND THE STRING SLOT SYSTEM
+% \OlympLang AND THE STRING SLOT SYSTEM
 % ============================================================
 %
 % \OlympLang expands to the active language code: "ru", "kz", ...
@@ -349,21 +284,39 @@
     \expandafter\def\csname OlympStr@#1@\OlympLang\endcsname{#2}%
 }
 
+% \OlympIfStringDefined{key}{content} -- expands to <content> only if
+% that slot was ever \SetOlympString'd, otherwise expands to nothing.
+% For slots that are genuinely OPTIONAL per competition -- e.g. a logo
+% or tour icon image path (see strings-config.tex) -- where not every
+% competition/style has one, and the right behavior for "no such
+% picture" is to skip the \includegraphics entirely, not print an
+% [?OlympStr:...] placeholder (\OlympStringFallback's job) or error.
+\newcommand{\OlympIfStringDefined}[2]{%
+  \@ifundefined{OlympStr@#1@\OlympLang}{}{#2}%
+}
+
 % ============================================================
-% PART 4 — LANGUAGE AND ENCODING
+% LANGUAGE AND ENCODING
 % ============================================================
 % Loaded here unconditionally. The competition .sty can call
 % \addto\captionsrussian{...} afterwards to adjust babel strings.
-
-\RequirePackage[T2A, T1]{fontenc}
-\RequirePackage[utf8]{inputenc}
+%
+% fontenc/inputenc/mathtext are gone as of v1.5 (XeLaTeX) -- fontspec
+% needs neither (XeTeX's input is natively UTF-8 and font selection is
+% OpenType, not 8-bit NFSS encodings), and mathtext's whole job was
+% letting pdfTeX accept literal Cyrillic inside math mode, which
+% XeTeX/fontspec already does without help. \setmainfont etc. are
+% deliberately NOT called here -- that's per-style, in
+% olympiad-layout.sty's \ifOlympStyle...\fi blocks (see this class's
+% own design contract at the top: no competition/style-specific
+% layout in this file).
+\RequirePackage{fontspec}
 \RequirePackage{amsmath, amssymb, amsthm, amsfonts} % Advanced math structures
-\RequirePackage{mathtext} % <--- This fixes the math-mode Cyrillic issue
 \RequirePackage[english, russian, strings]{babel}
 
 
 % ============================================================
-% PART 5 — DOCUMENT STRUCTURE COUNTERS
+% DOCUMENT STRUCTURE COUNTERS
 % ============================================================
 %
 % problemnum / solnum: which problem/solution we are on.
@@ -389,7 +342,7 @@
 \newcounter{figcounter}[problemnum]     \setcounter{figcounter}{0}
 
 % taskalphanum: labels items (a), (b), (c), ... for
-% task[type=subproblem] (Part 10). Not parented to problemnum/
+% task[type=subproblem] (see specific style .sty-files). Not parented to problemnum/
 % subproblemnum like tasknum -- the environment itself resets it to 0
 % at the start of EVERY type=subproblem block (self-contained, always
 % starts at (a)), so an automatic parent-triggered reset would be
@@ -400,17 +353,7 @@
 % problemnum/subproblemnum or solnum/subsolnum families, that steps
 % once per \solution or \subsolution (see Parts 8-9). Its only job is
 % giving \theHequation (olympiad-marking.sty) a plain, single-parent
-% counter to anchor hyperref's PDF destination names to. Equation
-% anchors need to be unique across DIFFERENT \solution/\subsolution
-% blocks (which each reset the real `equation' counter to 0 for
-% readable "(1), (2), ..." display) -- chngcntr's usual
-% \counterwithin*{equation}{X} approach cannot do this reliably here,
-% because it depends on hyperref having been loaded BEFORE X was
-% \newcounter'd, which can never be true for counters declared in
-% this class (loaded via \documentclass, always before the user's own
-% \usepackage{hyperref}). A single manually-stepped counter sidesteps
-% that entirely: nothing about it depends on hyperref's own counter
-% tracking, so there's no load-order constraint to violate.
+% counter to anchor hyperref's PDF destination names to.
 \newcounter{blocknum}                   \setcounter{blocknum}{0}
 
 \ExplSyntaxOn
@@ -432,23 +375,24 @@
 % this same string and drifting out of sync. Don't reconstruct it
 % locally anywhere else; call this instead.
 %
-% type=marking (\ifOlympMarking) reuses the \ifOlympSolutions branch
-% verbatim (solnum/subsolnum), not a no-op: \solution/\subsolution
-% step those counters unconditionally regardless of type, so they're
-% just as meaningful under type=marking. Before this branch existed,
-% \ifOlympProblems and \ifOlympSolutions were BOTH false under
-% type=marking (type is one-of-three, see Part 1), so this macro
-% silently expanded to nothing -- breaking \eqref/\figref/\eq's
-% default label (still latent wherever \OlympString{figlabel} is
-% defined per-competition, e.g. strings-*.tex, which has the same
-% \ifOlympProblems/\ifOlympSolutions-only pattern and needs the same
-% fix there).
+% type=jury (\ifOlympJury) and type=marking (\ifOlympMarking) both
+% reuse the \ifOlympSolutions branch verbatim (solnum/subsolnum), not
+% a no-op: \solution/\subsolution step those counters unconditionally
+% regardless of type, so they're just as meaningful under either --
+% jury is the dense internal scheme table, marking is the separate
+% student-facing scheme document, and both number problems the same
+% way solutions does (they're built from the same \solution/
+% \subsolution calls, just followed by \input{marking.tex} instead of
+% \input{solution.tex}).
 % ============================================================
 \newcommand{\OlympCurrentPrefix}{%
   \ifOlympProblems
     \arabic{problemnum}\printcounter{subproblemnum}%
   \fi
   \ifOlympSolutions
+    \arabic{solnum}\printcounter{subsolnum}%
+  \fi
+  \ifOlympJury
     \arabic{solnum}\printcounter{subsolnum}%
   \fi
   \ifOlympMarking
@@ -476,270 +420,13 @@
     \DeclareCaptionLabelFormat{olymp@figlabel}{%
       \OlympString{figlabel}%  #1=prefix (unused), #2=counter
     }%
-    \ifOlympMarking\else
+    \ifOlympMarking\else\ifOlympJury\else % figures are not used here anyway
     \captionsetup[figure]{labelformat=olymp@figlabel, labelsep=space}%
-    \fi
+    \fi\fi
   }%
 }
 
 \renewcommand{\thefigure}{\OlympCurrentPrefix.\arabic{figcounter}}
-
-
-% ============================================================
-% PART 7 — \problem
-% ============================================================
-%
-% \problem{Title}{Points}
-%   Title — problem title, passed by build.py from problem.yaml
-%   Points — point value string, already grammatically correct
-%            (build.py resolved "10 баллов" / "10 ұпай")
-%
-% The command sets the LaTeX counter to N (for \taskref cross-
-% references), resets tasknum, starts a new page, and calls
-% \OlympProblemHeading which layout can redefine.
-%
-% No starred variant. No hardcoded subtitle text.
-% If a problem needs "three independent parts" text, that is
-% content — it goes in the problem's .tex file directly.
-% ============================================================
-
-% Heading hook: layout redefines this for typography control
-\newcommand{\OlympProblemHeading}[1]{%
-  \centerline{\large\textbf{#1}}%
-}
-
-\newcommand{\problem}[2]{%
-  % #1 = title, #2 = points string
-  \stepcounter{problemnum}%
-  \setcounter{subproblemnum}{0}%
-  \setcounter{tasknum}{0}%
-  \setcounter{figcounter}{0}%
-  \par%
-  \OlympProblemHeading{%
-    \ifOlympTheory\OlympString{problem}~\theproblemnum.~\fi#1~(#2 \OlympString{points_long})%
-  }%
-}
-
-
-% ============================================================
-% PART 8 — \solution
-% ============================================================
-%
-% \solution{Title}{Points}
-%   #1 = title, #2 = points string. Auto-numbers via \thesolnum
-%   (no explicit "number" argument -- was a stale 3rd argument in
-%   an earlier revision; see the top-of-file changelog).
-%   Sets solnum and resets tasksolnum/subsolnum/equation counter.
-%   Under type=marking (\ifOlympMarking), the heading additionally
-%   appends "--- \OlympString{marking_scheme}" -- competition .sty /
-%   strings-*.tex files must define OlympStr@marking_scheme@<lang>
-%   for this (e.g. \SetOlympString{marking_scheme}{Марк-схема}), same
-%   as any other \OlympString slot. \subsolution does the same.
-%
-% \solutionsheader
-%   Standalone command for the "РЕШЕНИЯ / ШЕШІМДЕР" block header.
-%   Separate from \solution so build.py can emit it once before
-%   the first \solution call, or not at all for single-problem
-%   files.
-% ============================================================
-
-\newcommand{\OlympSolutionHeading}[1]{%
-  \centerline{\large\textbf{#1}}%
-}
-
-\newcommand{\solution}[2]{%
-  % #1 = title, #2 = points string
-  \stepcounter{solnum}%
-  \setcounter{tasksolnum}{0}%
-  \setcounter{subsolnum}{0}%
-  \setcounter{equation}{0}%
-  \stepcounter{blocknum}%
-  \par%
-  \OlympSolutionHeading{%
-    \ifOlympTheory\OlympString{problem}~\thesolnum.~\fi#1~(#2 \OlympString{points_long})%
-  }%
-}
-
-
-
-% ============================================================
-% PART 9 — \subproblem and \subsolution
-% ============================================================
-%
-% \subproblem{Label}{Points}
-%   For the multi-part Problem 1 pattern (parts А, Б, В).
-%   Label  — single letter or short label, e.g. "А"
-%   Points — already-formatted string from build.py
-%
-%   \subsolution increments solnum so that \eq numbering
-%   and \eqref refs remain consistent across sub-problems.
-%   Resets tasksolnum and equation counter per sub-solution.
-%
-%   Heading uses slot "subproblem" so competition .sty can
-%   set:  \def\OlympStr@subproblem@ru{Задача 1A}
-%         \def\OlympStr@subproblem@kz{Есеп 1A}
-%   and:  \def\OlympStr@subsolution@ru{Задача 1A}
-%         \def\OlympStr@subsolution@kz{Есеп 1A}
-%
-%   \par (not \newline): \newline requires being mid-paragraph
-%   (horizontal mode). Right after a \centerline-based heading TeX
-%   is in vertical mode with no current line, so \newline there
-%   raised "There's no line here to end" the moment a blank line
-%   preceded the next \subproblem/\subsolution. \par is safe in
-%   both modes.
-% ============================================================
-
-\newcommand{\subproblem}[2]{%
-  % #1 = label (e.g. А), #2 = points string
-  \setcounter{figcounter}{0}%
-  \stepcounter{subproblemnum}%
-  \par%
-  \centerline{\textbf{\OlympString{problem}~\theproblemnum\printcounter{subproblemnum}.~#1~(#2 \OlympString{points_short})}}%
-}
-
-\newcommand{\subsolution}[2]{%
-  % #1 = label (e.g. А), #2 = points string
-  \stepcounter{subsolnum}%
-  \setcounter{tasksolnum}{0}%
-  \setcounter{equation}{0}%
-  \setcounter{figcounter}{0}%
-  \stepcounter{blocknum}%
-  \par%
-  \vspace{6pt}%
-  \ifOlympMarking
-    \centerline{\textbf{\OlympString{problem}~\thesolnum\printcounter{subsolnum}.~#1~(#2 \OlympString{points_short})~---~\OlympString{marking_scheme}}}%
-  \else
-    \centerline{\textbf{\OlympString{problem}~\thesolnum\printcounter{subsolnum}.~#1~(#2 \OlympString{points_short})}}%
-  \fi
-}
-
-% ============================================================
-% PART 10 — task ENVIRONMENT
-% ============================================================
-%
-% Wraps numbered sub-tasks within a problem statement.
-% Each \item auto-increments tasknum and produces label "N.M"
-% where N = \theproblemnum, M = \arabic{tasknum}.
-%
-% \begin{task}[type=subproblem] ... \end{task}
-%   Same list, but labels each \item "(a)", "(b)", "(c)", ... instead
-%   of the numbered "N.M" style -- for a task that's really a set of
-%   lettered/alternative sub-parts (e.g. "(a) ... (b) ...") rather
-%   than a fresh top-level numbered task. Aliases: type=alternative,
-%   type=alphabetic -- all three are identical; pick whichever reads
-%   best at the call site. An unrecognised type=... value warns and
-%   falls back to the default numbered style (mirrors \eq/\criterion
-%   in olympiad-marking.sty).
-%
-%   Uses its own counter (taskalphanum, Part 5), reset to 0 at the
-%   START of every type=subproblem block, so each such list is
-%   self-contained and always starts at (a) regardless of any other
-%   task[type=subproblem] elsewhere in the document. This replaces an
-%   ad hoc \newcounter{taskstar}-per-file pattern some problems
-%   hand-rolled for the same effect, which breaks the moment a SECOND
-%   file needing it is \input into the same document (\newcounter
-%   errors on a name already taken).
-%
-% Deliberately uses raw list — no enumitem keys here.
-% olympiad-layout.sty issues \setlist or patches this env
-% to control spacing, indentation, and font.
-% ============================================================
-
-\ExplSyntaxOn
-
-\bool_new:N \l__olymp_task_alphabetic_bool
-
-\DeclareKeys[olymp/task]
-  {
-    type .code:n = {
-      \str_case:nnF {#1}
-        {
-          {subproblem}  { \bool_set_true:N \l__olymp_task_alphabetic_bool }
-          {alternative} { \bool_set_true:N \l__olymp_task_alphabetic_bool }
-          {alphabetic}  { \bool_set_true:N \l__olymp_task_alphabetic_bool }
-        }
-        {
-          \ClassWarning{olympiad}
-            { type=#1~is~not~recognised~by~the~task~environment~(only~subproblem~/~alternative~/~alphabetic~are);~using~the~default~numbered~style }
-        }
-    } ,
-  }
-
-\NewDocumentEnvironment{task}{ O{} }
-  {
-    \bool_set_false:N \l__olymp_task_alphabetic_bool
-    \SetKeys[olymp/task]{#1}
-    \bool_if:NT \l__olymp_task_alphabetic_bool { \setcounter{taskalphanum}{0} }
-    \begin{list}{}{
-      \setlength{\leftmargin}{18pt}
-      \setlength{\labelwidth}{0pt}
-      \setlength{\labelsep}{0pt}
-      \bool_if:NTF \l__olymp_task_alphabetic_bool
-        {
-          \renewcommand{\makelabel}[1]{
-            \refstepcounter{taskalphanum}
-            \textbf{(\alph{taskalphanum})}~
-          }
-        }
-        {
-          \renewcommand{\makelabel}[1]{
-            \refstepcounter{tasknum}
-            \textbf{\theproblemnum\printcounter{subproblemnum}.\arabic{tasknum}}~
-          }
-        }
-    }
-  }
-  {
-    \end{list}
-  }
-
-\ExplSyntaxOff
-
-
-% ============================================================
-% PART 11 — \tasksol, \taskref, \solref
-% ============================================================
-%
-% \tasksol  — starts a solution sub-task, incrementing
-%             tasksolnum and printing the "N.M" label
-% \taskref{M} — bold reference to sub-task M of current problem
-% \solref{M}  — bold reference to sub-task M of current solution
-%
-% \figref{N} — reference the Nth picture within the CURRENT
-%   problem/subproblem or solution/subsolution block. Delegates to
-%   \OlympCurrentPrefix instead of reconstructing the
-%   \ifOlympProblems/\ifOlympSolutions branch locally -- see that
-%   macro's own comment for why.
-%
-% The \hspace* mirrors task's leftmargin; layout can adjust.
-% ============================================================
-
-\newcommand{\tasksol}{%
-  \vspace{6pt}%
-  \hspace*{18pt}%
-  \stepcounter{tasksolnum}%
-  \textbf{\thesolnum.\thetasksolnum}~%
-}
-
-\newcommand{\taskref}[1]{\textbf{\theproblemnum.#1}}
-\newcommand{\solref}[1]{\textbf{\thesolnum.#1}}
-
-\newcommand{\figref}[1]
-{
-  \ifOlympProblems%
-  \arabic{problemnum}\printcounter{subproblemnum}.\ref{fig:\OlympCurrentPrefix.#1}%
-  \fi%
-  \ifOlympSolutions%
-  \arabic{solnum}\printcounter{subsolnum}.\ref{fig:\OlympCurrentPrefix.#1}%
-  \fi%
-}
-% (figcounter resets per \problem/\subproblem/\subsolution, see
-% Part 5/9). Authors never type or track the problem number
-% themselves: \OlympCurrentPrefix is resolved at compile time, so
-% figure references survive problems being reordered/renumbered by
-% build.py. Pairs with the label key that \pic/\cpic/\cpics in
-% olympiad-layout.sty must use:
-%   \label{fig:\OlympCurrentPrefix.\thefigcounter}
 
 \RequirePackage{lipsum}
 

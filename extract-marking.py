@@ -24,18 +24,18 @@
 #    use. Instead, this script always emits BOTH variants (column spec,
 #    header row, the extra MP/A cells on every row, the mid-table
 #    \pagebreak) and lets olympiad-marking.sty choose between them via
-#    \ifOlympMarking at compile time: \OlympMarkPick{sol}{mark} for
-#    ordinary running text / table cells, and \OlympMarkBeginTable{sol
+#    \ifOlympJury at compile time: \OlympJuryPick{sol}{mark} for
+#    ordinary running text / table cells, and \OlympJuryBeginTable{sol
 #    colspec}{mark colspec} specifically for opening the tabularx (in
 #    place of \begin{tabularx}{\linewidth}{...}). These are NOT
 #    interchangeable: a tabularx column-spec argument is scanned by
 #    array/tabularx ONE TOKEN AT A TIME (\@mkpream/\@testpach), which
 #    only ever expands a single token in isolation — a 2-argument macro
-#    like \OlympMarkPick sitting there breaks, because TeX goes hunting
+#    like \OlympJuryPick sitting there breaks, because TeX goes hunting
 #    for its {sol}{mark} arguments in array's own scanning internals
 #    instead of the braces actually written next to it (raising
-#    "Illegal pream-token"). \OlympMarkBeginTable sidesteps this by
-#    resolving \ifOlympMarking...\fi to plain characters via \edef
+#    "Illegal pream-token"). \OlympJuryBeginTable sidesteps this by
+#    resolving \ifOlympJury...\fi to plain characters via \edef
 #    BEFORE \begin{tabularx} is ever invoked, so array only ever sees a
 #    literal, hand-written-looking colspec. See olympiad-marking.sty
 #    for both macros.
@@ -68,21 +68,21 @@
 #    per rendered line, sums that estimate across all rows, and — if it
 #    exceeds PAGEBREAK_ROW_THRESHOLD — inserts, at the row/task boundary
 #    nearest the true middle, an UNCONDITIONAL \end{tabularx} +
-#    \OlympMarkBeginTable{...}{...} reopen, with \pagebreak and the
+#    \OlympJuryBeginTable{...}{...} reopen, with \pagebreak and the
 #    repeated marking-mode header each wrapped separately in their own
-#    tiny \OlympMarkPick{}{...} fragment. In a type=solutions compile the
+#    tiny \OlympJuryPick{}{...} fragment. In a type=solutions compile the
 #    reopen is chosen with the SAME (solutions) colspec and neither
 #    \pagebreak nor the header fire, so it's an invisible seam and the
 #    table reads as whole. Never splits inside a multirow task group.
 #    This is a rough estimate, as requested — the placement is still
 #    subject to editorial review.
 #    Do NOT fold the close+\pagebreak+reopen+header sequence back into
-#    ONE string handed to a single \OlympMarkPick{}{...} call (as an
+#    ONE string handed to a single \OlympJuryPick{}{...} call (as an
 #    earlier version of this script did) -- \begin{tabularx}/\end{tabularx}
 #    must be encountered directly in the main input stream, not read as
 #    captured macro-argument text, or LaTeX raises "Extra }, or forgotten
-#    $." / "Missing } inserted" depending on which \OlympMarkPick branch
-#    ends up active. See the \OlympMarkBeginTable comment in
+#    $." / "Missing } inserted" depending on which \OlympJuryPick branch
+#    ends up active. See the \OlympJuryBeginTable comment in
 #    olympiad-marking.sty for the closely related bare-& note.
 # 6. \subsolution ("soljanka") handling mirrors extract-solution.py
 #    exactly: if any \subsolution{...} is present, only the *first* one is
@@ -286,9 +286,9 @@ def fmt_points(value):
 
 def wrap_pick(sol_text, marking_text):
     """Wraps a (solutions-mode, marking-mode) pair of literal LaTeX chunks
-    into a single \\OlympMarkPick{...}{...} call, resolved at compile time
-    via \\ifOlympMarking (see olympiad-marking.sty)."""
-    return f"\\OlympMarkPick{{{sol_text}}}{{{marking_text}}}"
+    into a single \\OlympJuryPick{...}{...} call, resolved at compile time
+    via \\ifOlympJury (see olympiad-marking.sty)."""
+    return f"\\OlympJuryPick{{{sol_text}}}{{{marking_text}}}"
 
 
 # ── type= classification (mirrors __olympm_settype_eq:n / _criterion:n) ──
@@ -479,9 +479,9 @@ def render_content_and_points(row, lang):
 
 def build_rows(tasks, is_long, lang):
     """Builds fully-formatted physical table rows. Each row is wrapped
-    WHOLESALE in \\OlympMarkPick{solutions-row}{marking-row} (mirroring
+    WHOLESALE in \\OlympJuryPick{solutions-row}{marking-row} (mirroring
     build_header/build_total_row below), never split into a shared base
-    plus a partial \\OlympMarkPick{}{ & & ...} tail for just the extra
+    plus a partial \\OlympJuryPick{}{ & & ...} tail for just the extra
     MP/A cells. The latter looks tempting (less duplication) but is
     actually broken TeX: a bare alignment-tab (&) sitting inside the
     FALSE branch of a conditional, in the middle of an otherwise-shared
@@ -489,7 +489,7 @@ def build_rows(tasks, is_long, lang):
     "Incomplete \\iffalse" once enough of the surrounding table has been
     read for it to surface -- reproducible with nothing but plain
     \\iffalse & \\fi inside a bare tabular row, no custom macros
-    involved. \\OlympMarkPick itself is perfectly safe -- for CELL
+    involved. \\OlympJuryPick itself is perfectly safe -- for CELL
     CONTENT, or wrapping an entire row/line as done here -- just never
     for a fragment that leaves a stray & in the skipped branch."""
     physical = []
@@ -613,7 +613,7 @@ def build_total_row(total_points, is_marking, is_long, lang):
     return " & ".join(cells) + " \\\\ \\hline"
 
 
-# ── Pagebreak heuristic (always computed; only active when \ifOlympMarking
+# ── Pagebreak heuristic (always computed; only active when \ifOlympJury
 #    is true at compile time — see wrap_pick() usage in generate_marking_tex) ─
 
 PAGEBREAK_ROW_THRESHOLD = 36  # see DESIGN NOTE 5
@@ -657,11 +657,11 @@ def generate_marking_tex(tasks, total_points, is_long, lang):
         "% Auto-generated by extract-marking.py -- do not edit by hand unless you know what to do.",
         "% Works for BOTH \\documentclass[...,type=solutions,...] and",
         "% [...,type=marking,...] compiles, chosen at compile time via",
-        "% \\OlympMarkPick / \\OlympMarkBeginTable (see olympiad-marking.sty).",
+        "% \\OlympJuryPick / \\OlympJuryBeginTable (see olympiad-marking.sty).",
         "% \\eqref{n} falls back to a plain '(n)' whenever the referenced",
         "% equation isn't actually typeset in the current document.",
         "",
-        f"\\OlympMarkBeginTable{{{colspec_sol}}}{{{colspec_mark}}}",
+        f"\\makegapedcells\\OlympJuryBeginTable{{{colspec_sol}}}{{{colspec_mark}}}",
         "\\hline",
         header,
     ]
@@ -670,13 +670,13 @@ def generate_marking_tex(tasks, total_points, is_long, lang):
     for i, r in enumerate(rows):
         out.append(r['tex'])
         if split_idx is not None and i == split_idx:
-            # The close/reopen itself is UNCONDITIONAL (\OlympMarkBeginTable
+            # The close/reopen itself is UNCONDITIONAL (\OlympJuryBeginTable
             # picks the right colspec either way, so in a type=solutions
             # compile this is an invisible no-op seam); only \pagebreak and
             # the repeated header are marking-only, and each is its own
-            # small \OlympMarkPick{}{...} fragment with no bare & in it.
+            # small \OlympJuryPick{}{...} fragment with no bare & in it.
             # Do NOT collapse this back into one \end{tabularx}\begin{...}
-            # string handed to \OlympMarkPick as a single argument -- LaTeX's
+            # string handed to \OlympJuryPick as a single argument -- LaTeX's
             # \begin/\end need to be encountered directly in the main input
             # stream, not read as captured macro-argument text, or you get
             # "Extra }, or forgotten $." / "Missing } inserted" depending on
@@ -762,7 +762,7 @@ def main():
 
     print(f"Detected: language={lang}, {'long (subtasks)' if is_long else 'short'} format "
           f"({tasksol_count} \\tasksol occurrence(s)); type=solutions/marking is "
-          f"resolved at LaTeX compile time via \\OlympMarkPick.")
+          f"resolved at LaTeX compile time via \\OlympJuryPick.")
     print(f"Successfully processed marking scheme into {out_dir}/{out_name}")
 
 

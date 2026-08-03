@@ -4,18 +4,20 @@
 
 \begin{center}
   \ifOlympTheory
-    \includegraphics[width=0.6\linewidth]{competitions/respa/final/2025-26/icon_theor.png}
+    \OlympIfStringDefined{icon_theor}{\includegraphics[width=0.6\linewidth]{\OlympString{icon_theor}}}
   \fi
   \ifOlympExperiment
-    \includegraphics[width=0.6\linewidth]{competitions/respa/final/2025-26/icon_exp.png}
+    \OlympIfStringDefined{icon_exp}{\includegraphics[width=0.6\linewidth]{\OlympString{icon_exp}}}
   \fi
 \end{center}
 
 \vspace*{\fill}
 
 
-\href{https://daryn.kz/respa/}{%
-  \includegraphics[width=0.2\linewidth]{competitions/daryn_logo.png}%
+\OlympIfStringDefined{logo}{%
+  \href{https://daryn.kz/respa/}{%
+    \includegraphics[width=0.2\linewidth]{\OlympString{logo}}%
+  }%
 }
 
 \textbf{\OlympString{name_full}}

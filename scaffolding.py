@@ -5,7 +5,14 @@ scaffolding.py
 Interactive scaffolder for a new year (or first year) of a competition
 stage: problem/solution/marking stub files for every problem, plus
 ready-to-compile root documents, for every grade x language the stage
-declares.
+declares. Every stage gets a type=jury document per tour (theory_jury.tex/
+experiment_jury.tex -- the dense, internal-only scheme table graders
+use; \\juryheader per problem) unconditionally, since jury always needs
+SOME marking scheme; a SEPARATE, student-facing type=marking document
+(theory_marking.tex/experiment_marking.tex -- \\markingheader once, then
+placeholder-titled \\solution/\\subsolution calls per problem, same
+workflow as every other stub) is optional -- see HAS_STUDENT_MARKING
+for respa/respa_junior, or the interactive prompt for a custom family.
 
 Unlike its predecessor (competitions/scaffolding-respa.py, now
 deleted), this script does not hard-code which competition families
@@ -120,6 +127,26 @@ SHAPE_BY_PATH: dict[tuple[str, str], str] = {
 # (family, stage) pair here if another stage adopts them later. A
 # custom family is asked about this directly instead.
 HAS_ANSWER_SHEETS: set[tuple[str, str]] = {
+    ("respa", "final"),
+}
+
+# ------------------------------------------------------------------
+# Which stages also get a separate, student-facing marking-scheme
+# document (type=marking) -- theory_marking.tex/experiment_marking.tex,
+# built from \solution/\subsolution heading calls (with placeholder
+# titles, same as every other stub -- the real titles get copied in by
+# hand later, same workflow as solution.tex/problem.tex) followed by
+# \input{folder/marking.tex}. This is separate from, and in addition
+# to, the internal jury scheme table (type=jury, theory_jury.tex/
+# experiment_jury.tex via render_jury_doc) which every stage always
+# gets regardless of this table -- juries need SOME marking scheme
+# unconditionally, but not every stage wants to also publish a
+# separate student-facing one (the alternative being: the marking
+# scheme stays visible only inside the solutions document, via
+# \input{folder/marking.tex} right after \input{folder/solution.tex},
+# same as it always was). A custom family is asked about this
+# directly instead (see ask_yes_no call in main()).
+HAS_STUDENT_MARKING: set[tuple[str, str]] = {
     ("respa", "final"),
 }
 
@@ -374,13 +401,13 @@ def _preamble(*, lang: str, calendar_year: str, grade: str, tour: str, doc_type:
         f"  grade={grade},",
         f"  tour={tour},",
         f"  type={doc_type},",
-        r"  style=respa",  # the only layout style olympiad.cls supports today
+        r"  style=respa",  # this script only ever scaffolds style=respa; style=ipho is hand-authored (see scaffolding.py's own module docstring)
         r"]{olympiad}",
         "",
         r"\usepackage{olympiad-layout}",
         r"\usepackage{olympiad-units-" + lang + "}",
     ]
-    if doc_type in ("solutions", "marking"):
+    if doc_type in ("solutions", "marking", "jury"):
         lines.append(r"\usepackage{olympiad-marking}")
     lines += [
         "",
@@ -475,20 +502,57 @@ def render_solutions_doc(
     return "\n".join(lines)
 
 
-def render_marking_doc(
+def render_jury_doc(
     *, groups: list[list[str]],
     lang: str, calendar_year: str, grade: str, tour: str, comp: str, subcomp: str, year_name: str,
 ) -> str:
+    """type=jury: the dense, internal-only scheme table every stage
+    always gets (juries need SOME marking scheme unconditionally) --
+    \\juryheader prints its own per-problem "Проверяющий/Шифр" cipher
+    banner, so there's no heading call here the way render_solutions_doc
+    and render_student_marking_doc need one."""
     lines = _preamble(lang=lang, calendar_year=calendar_year, grade=grade, tour=tour,
-                       doc_type="marking", comp=comp, subcomp=subcomp, year_name=year_name)
+                       doc_type="jury", comp=comp, subcomp=subcomp, year_name=year_name)
     lines.append("")
     for i, folders in enumerate(groups):
-        lines.append(r"\markingheader")
+        lines.append(r"\juryheader")
         for folder in folders:
             lines.append(r"\input{" + folder + "/marking.tex}")
         if i != len(groups) - 1:
             lines += ["", r"\newpage", ""]
     lines += ["", r"\end{document}", ""]
+    return "\n".join(lines)
+
+
+def render_student_marking_doc(
+    *, groups: list[list[str]], soljanka_indices: set[int], subpart_points: str, plain_points: str,
+    lang: str, calendar_year: str, grade: str, tour: str, comp: str, subcomp: str, year_name: str,
+) -> str:
+    """type=marking: the OPTIONAL, student-facing marking-scheme
+    document (see HAS_STUDENT_MARKING / the custom-family prompt in
+    main()). Unlike render_solutions_doc, marking.tex is \\input
+    WITHOUT solution.tex alongside it, so nothing else in the document
+    provides the \\solution/\\subsolution heading -- this function has
+    to emit it directly, with the same placeholder title every other
+    stub uses (the real title gets copied in by hand later, exactly
+    the workflow this script's own docstring already describes for
+    problem.tex/solution.tex/answer.tex)."""
+    lines = _preamble(lang=lang, calendar_year=calendar_year, grade=grade, tour=tour,
+                       doc_type="marking", comp=comp, subcomp=subcomp, year_name=year_name)
+    lines += [r"\markingheader", ""]
+    for i, folders in enumerate(groups):
+        is_split = len(folders) > 1
+        if i in soljanka_indices:
+            lines.append(r"\solution{\OlympString{soljanka}}{" + POINTS_COMBINED + "}")
+        for folder in folders:
+            cmd = "subsolution" if is_split else "solution"
+            points = subpart_points if is_split else plain_points
+            lines.append("\\" + cmd + "{" + PLACEHOLDER_TITLE + "}{" + points + "}")
+            lines.append(r"\input{" + folder + "/marking.tex}")
+            lines.append("")
+        if i != len(groups) - 1:
+            lines += [r"\newpage", ""]
+    lines += [r"\end{document}", ""]
     return "\n".join(lines)
 
 
@@ -554,6 +618,7 @@ def confirm_year_dir(year_dir: Path) -> None:
 def generate_shape_scaffold(
     year_dir: Path, calendar_year: str, shape: Shape,
     *, grades: list, languages: list[str], instructions: bool, wants_answers: bool,
+    wants_student_marking: bool,
 ) -> None:
     year_dir = year_dir.resolve()
     comp, subcomp = validate_base_dir(year_dir.parent)
@@ -567,6 +632,7 @@ def generate_shape_scaffold(
     print(f"Scaffolding {year_dir}")
     print(f"  theory={shape.theory}   experiment={shape.experiment}")
     print(f"  grades: {grades}   languages: {languages}   instructions: {instructions}   answer sheets: {wants_answers}")
+    print(f"  separate student-facing marking scheme (type=marking): {wants_student_marking}")
 
     missing_competition_files: set[str] = set()
     tours = ["theory"] + (["experiment"] if shape.experiment else [])
@@ -607,8 +673,12 @@ def generate_shape_scaffold(
                 instructions=instructions, tour="theory", **common))
             write_file(lang_dir / "theory_sol.tex", render_solutions_doc(
                 groups=theory_groups, soljanka_indices=soljanka_indices, tour="theory", **common))
-            write_file(lang_dir / "theory_marking.tex", render_marking_doc(
+            write_file(lang_dir / "theory_jury.tex", render_jury_doc(
                 groups=theory_groups, tour="theory", **common))
+            if wants_student_marking:
+                write_file(lang_dir / "theory_marking.tex", render_student_marking_doc(
+                    groups=theory_groups, soljanka_indices=soljanka_indices,
+                    subpart_points=POINTS_SUBPART, plain_points=POINTS_PROBLEM, tour="theory", **common))
             if wants_answers:
                 write_file(lang_dir / "theory_answer.tex", render_answer_doc(
                     groups=theory_groups, soljanka_indices=soljanka_indices, tour="theory", **common))
@@ -619,8 +689,12 @@ def generate_shape_scaffold(
                     instructions=instructions, tour="experiment", **common))
                 write_file(lang_dir / "experiment_sol.tex", render_solutions_doc(
                     groups=experiment_groups, soljanka_indices=set(), tour="experiment", **common))
-                write_file(lang_dir / "experiment_marking.tex", render_marking_doc(
+                write_file(lang_dir / "experiment_jury.tex", render_jury_doc(
                     groups=experiment_groups, tour="experiment", **common))
+                if wants_student_marking:
+                    write_file(lang_dir / "experiment_marking.tex", render_student_marking_doc(
+                        groups=experiment_groups, soljanka_indices=set(),
+                        subpart_points=POINTS_EXPERIMENT, plain_points=POINTS_EXPERIMENT, tour="experiment", **common))
                 if wants_answers:
                     write_file(lang_dir / "experiment_answer.tex", render_answer_doc(
                         groups=experiment_groups, soljanka_indices=set(), tour="experiment", **common))
@@ -702,11 +776,13 @@ def main() -> None:
         first_half = (comp, subcomp) in FIRST_HALF_YEAR
         calendar_year = str(start_year if first_half else start_year + 1)
         wants_answers = (comp, subcomp) in HAS_ANSWER_SHEETS
+        wants_student_marking = (comp, subcomp) in HAS_STUDENT_MARKING
 
         generate_shape_scaffold(
             year_dir, calendar_year, shape,
             grades=defaults["grades"], languages=defaults["languages"],
             instructions=defaults["instructions"], wants_answers=wants_answers,
+            wants_student_marking=wants_student_marking,
         )
         return
 
@@ -734,6 +810,11 @@ def main() -> None:
     wants_answers = ask_yes_no(
         "Include answer sheets (answer.tex per problem, plus "
         "theory_answer.tex/experiment_answer.tex)?", default=False)
+    wants_student_marking = ask_yes_no(
+        "Generate a separate, student-facing marking-scheme document (type=marking, "
+        "theory_marking.tex/experiment_marking.tex) in addition to the internal jury "
+        "scheme table (type=jury, always generated)? Answer no to keep the marking "
+        "scheme visible only inside the solutions document, as before.", default=False)
 
     n_theory = ask_int("How many theory problems (T1, T2, ...)? ", 1, 20)
     theory_shape = []
@@ -751,6 +832,7 @@ def main() -> None:
         year_dir, calendar_year, shape,
         grades=grades, languages=languages,
         instructions=instructions, wants_answers=wants_answers,
+        wants_student_marking=wants_student_marking,
     )
 
 

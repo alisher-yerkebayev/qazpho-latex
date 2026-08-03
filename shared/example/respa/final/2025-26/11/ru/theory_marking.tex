@@ -11,25 +11,32 @@
 \usepackage{olympiad-units-ru}
 \usepackage{olympiad-marking}
 
-\input{competitions/respa/strings-config.tex}
-\input{competitions/respa/final/strings-competition.tex}
-\input{competitions/respa/final/2025-26/strings-manifest.tex}
+\input{shared/example/respa/strings-config.tex}
+\input{shared/example/respa/final/strings-competition.tex}
+\input{shared/example/respa/final/2025-26/strings-manifest.tex}
 
 \begin{document}
 
 \markingheader
+
+\solution{\OlympString{soljanka}}{10.0}
+\subsolution{Фрикционная сварка}{3.5}
 \input{T1A/marking.tex}
+
+\subsolution{Переменный (?) ток}{3.5}
 \input{T1B/marking.tex}
+
+\subsolution{Интерференция звука}{3.0}
 \input{T1C/marking.tex}
 
 \newpage
 
-\markingheader
+\solution{Стабильность звезды}{10.0}
 \input{T2/marking.tex}
 
 \newpage
 
-\markingheader
+\solution{Магнитные цепи и трансформатор}{10.0}
 \input{T3/marking.tex}
 
 \end{document}

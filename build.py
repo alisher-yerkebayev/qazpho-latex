@@ -22,10 +22,12 @@ Examples:
 "compile" always reruns latexmk and overwrites whatever PDF is already
 in that document's build/ folder -- there's no staleness/mtime check.
 It relies entirely on the .latexmkrc stub -> root .latexmkrc chain for
-TEXINPUTS (see qazpho-latex/.latexmkrc); it does not set any LaTeX
-environment variables itself. This means latexmk must be on PATH and
-the current checkout must have `git` available, same requirement the
-.latexmkrc stubs already impose.
+TEXINPUTS and font search paths (see qazpho-latex/.latexmkrc); it does
+not set any LaTeX environment variables itself. This means latexmk
+must be on PATH and the current checkout must have `git` available,
+same requirement the .latexmkrc stubs already impose. Compiles run
+under XeLaTeX (`-pdfxe`) -- olympiad.cls requires it (fontspec-based
+per-style fonts; see olympiad.cls's v1.5 changelog).
 
 "dist" names each copied PDF {family}_{stage}{year}_{grade}_{stem}_{lang}.pdf,
 e.g. respa_final2026_11_theory_answer_ru.pdf -- family/stage come from
@@ -33,6 +35,13 @@ year_dir's own path, year comes from manifest.yaml's dates.year (the
 calendar year actually being built for, not the "2025-26"-style academic
 year folder name), grade/lang come from the two path components directly
 above each build/ folder, and stem is the PDF's own filename stem.
+
+"dist" skips any *_jury.pdf (theory_jury.pdf/experiment_jury.pdf,
+type=jury -- the internal, jury-only dense scheme table with fields
+for the grader's name/cipher, see olympiad-marking.sty's \\juryheader):
+those aren't meant to leave the grading room, unlike the optional,
+student-facing *_marking.pdf (type=marking) built from the same
+marking.tex fragments, which IS meant for dist.
 """
 
 from __future__ import annotations
@@ -106,7 +115,7 @@ def find_root_documents(target: Path) -> list[Path]:
 def compile_one(tex_file: Path) -> bool:
     """Returns True on success."""
     result = subprocess.run(
-        ["latexmk", "-pdf", "-interaction=nonstopmode", "-halt-on-error", "-outdir=build", tex_file.name],
+        ["latexmk", "-pdfxe", "-interaction=nonstopmode", "-halt-on-error", "-outdir=build", tex_file.name],
         cwd=tex_file.parent,
         capture_output=True,
         text=True,
@@ -166,9 +175,12 @@ def cmd_dist(year_dir: Path) -> None:
     except KeyError:
         raise SystemExit(f"{manifest_path}: missing dates.year.")
 
-    pdfs = sorted(year_dir.glob("*/*/build/*.pdf"))
-    if not pdfs:
+    all_pdfs = sorted(year_dir.glob("*/*/build/*.pdf"))
+    if not all_pdfs:
         raise SystemExit(f"No PDFs found under {year_dir}/*/*/build/ -- run `build.py compile` first.")
+
+    pdfs = [pdf for pdf in all_pdfs if not pdf.stem.endswith("_jury")]
+    skipped_jury = [pdf for pdf in all_pdfs if pdf.stem.endswith("_jury")]
 
     dist_dir = year_dir / "dist"
     dist_dir.mkdir(exist_ok=True)
@@ -184,6 +196,10 @@ def cmd_dist(year_dir: Path) -> None:
     print(f"Copied {len(copied)} file(s) into {dist_dir.relative_to(REPO_ROOT)}:")
     for name in copied:
         print(f"  {name}")
+    if skipped_jury:
+        print(f"Skipped {len(skipped_jury)} internal-only jury PDF(s) (not meant for dist):")
+        for pdf in skipped_jury:
+            print(f"  {pdf.relative_to(year_dir)}")
 
 
 def main() -> None:

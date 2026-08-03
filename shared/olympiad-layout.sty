@@ -1,5 +1,5 @@
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{olympiad-layout}[2027/01/01 v1.3 Layout layer]
+\ProvidesPackage{olympiad-layout}[2027/01/01 v1.5 Style-agnostic layout layer]
 
 % ============================================================
 %  olympiad-layout.sty
@@ -38,6 +38,35 @@
 %    separate .sty file. olympiad.cls stays out of this decision
 %    entirely: it only hosts the style key/conditionals (like
 %    language/tour/type), never branches on style itself.
+%
+%  CHANGELOG v1.3 -> v1.4
+%    - Engine switch to XeLaTeX (see olympiad.cls's v1.5 changelog):
+%      added a "PART 0 — FONTS" subsection at the top of the
+%      \ifOlympStyleRespa block selecting CMU Serif/CMU Sans Serif/CMU
+%      Typewriter Text explicitly (with Ligatures=TeX -- load-bearing,
+%      not cosmetic) so respa's look survives the engine change as
+%      closely as possible. Latin Modern was tried first and rejected
+%      -- see the PART 0 comment below for why.
+%
+%  CHANGELOG v1.4 -> v1.5
+%    - Branched out most of the content to separate files;
+%      Added `olympiad-respa.sty` (the standard one) and
+%      `olympiad-ipho.sty`. The content here is style-independent,
+%      and is universal to any styles loaded there. This file's own
+%      \ifOlympStyle...\fi branching below is what loads the right
+%      one -- \usepackage{olympiad-layout} stays the single, style-
+%      independent line every document's preamble uses; documents
+%      never \usepackage{olympiad-respa}/{olympiad-ipho} directly
+%      (fixed: those two \RequirePackage lines were briefly commented
+%      out while testing loading olympiad-respa directly from a
+%      document instead -- that ordering is wrong, because
+%      olympiad-respa.sty's own \RequirePackage{olympiad-layout} at
+%      its top means THIS file's \ifOlympLayoutMatched check below
+%      would run and fire its "no layout matched" warning BEFORE
+%      olympiad-respa.sty gets a chance to run its own
+%      \OlympLayoutMatchedtrue -- the check has to happen after the
+%      branching, in the same file, which is exactly why this file
+%      does the branching instead of leaving it to each document).
 % ============================================================
 
 \newif\ifOlympLayoutMatched
@@ -63,75 +92,8 @@
 \newif\ifOlympShowPoints
 \OlympShowPointstrue
 
-\ifOlympStyleRespa
-\OlympLayoutMatchedtrue
-
 % ============================================================
-% PART 1 — PAGE GEOMETRY
-% ============================================================
-
-\RequirePackage{geometry}
-\geometry{
-  a4paper,
-  left        = 12mm,
-  right       = 12mm,
-  top         = 12mm,
-  bottom      = 15mm,
-  headheight  = 15pt,
-  headsep     = 6pt,
-  footskip    = 15pt,
-  includehead,
-}
-
-% type=marking prints a dense, jury-facing scheme table (extra MP/A
-% columns, MP-per-criterion rows -- see olympiad-marking.sty) rather
-% than prose, so it trades the normal reading-friendly margins for
-% tighter ones to fit more table per page. Deliberately a SECOND
-% \geometry{...} call (not baked into the block above) so a plain
-% type=solutions/problems compile keeps its original margins byte-
-% for-byte -- \ifOlympMarking is only known once olympiad.cls (loaded
-% before this package) has run its \DeclareKeys/\ProcessKeyOptions.
-\ifOlympMarking
-  \geometry{
-    left   = 5mm,
-    right  = 5mm,
-    top    = 5mm,
-    bottom = 5mm,
-  }
-\fi
-
-
-% ============================================================
-% PART 2 — TYPOGRAPHY
-% ============================================================
-
-\ifOlympProblems\setlength{\parindent}{18pt}\fi
-\ifOlympSolutions\setlength{\parindent}{0pt}\fi
-\ifOlympMarking\setlength{\parindent}{0pt}\fi
-\setlength{\parskip}{0pt}
-\setlength{\intextsep}{0pt}      % no extra space around floats
-
-% Configures the spacing around equations
-%\setlength{\abovedisplayskip}{2pt plus 0pt minus 2pt}
-%\setlength{\belowdisplayskip}{2pt plus 0pt minus 2pt}
-%\setlength{\abovedisplayshortskip}{0pt plus 0pt}
-%\setlength{\belowdisplayshortskip}{2pt plus 0pt minus 2pt}
-
-\ifOlympMarking
-\renewcommand{\normalsize}{\fontsize{11}{12}\selectfont}%
-\normalsize
-\fi
-% Only \normalsize itself is touched (matches the reference marking.tex
-% this was ported from): \small, \footnotesize, \large, etc. keep
-% whatever absolute size article.cls assigned them for the class's
-% ORIGINAL base size -- intentional, not an oversight, since those
-% are mostly used for headings/labels that should stay legible
-% relative to the now-smaller body text, not shrink proportionally
-% with it.
-
-
-% ============================================================
-% PART 3 — PACKAGE LOADING ORDER
+% PACKAGE LOADING ORDER
 % ============================================================
 % siunitx must be loaded before tabularx/array so it can claim
 % the S column type without triggering the "overwritten" warning.
@@ -159,8 +121,59 @@
 \RequirePackage{graphicx}
 \RequirePackage{xcolor}
 % hyperref last among layout packages
-\RequirePackage[colorlinks=true, linkcolor=., citecolor=black, final]{hyperref}
+%
+% hypertexnames=false is NOT optional: by default (hypertexnames=true),
+% hyperref's automatic per-page PDF destination is named directly from
+% the `page' counter's value (see hyperref.sty's \Hy@EveryPageAnchor --
+% traced directly in the installed package source, not assumed).
+% respa's \problemsheader (olympiad-respa.sty) -- and every
+% \problem/\solution call in olympiad-ipho.sty -- do
+% \setcounter{page}{1} well after the title/instructions pages already
+% used up page 1 (and 2, ...), so the counter repeats, and xdvipdfmx
+% then warns "Object @page.N already defined" for every repeated value
+% (silently dropping the second destination, breaking whichever
+% \pageref pointed at it). hypertexnames=false switches that anchor's
+% name to hyperref's OWN internal, monotonically-incrementing
+% \Hy@pagecounter instead -- never reset, so never collides, and
+% \pageref{LastPage}/lastpage still resolve normally since they don't
+% care what the anchor is literally named. (plainpages=false, the more
+% commonly-cited option for "page numbers aren't unique", does NOT fix
+% this: per the same source, it only changes the anchor name from the
+% raw counter to \thepage's FORMATTED string, e.g. for mixed roman/
+% arabic numbering -- ours stays plain arabic throughout, so that
+% branch produces the exact same colliding name either way. Confirmed
+% empirically: adding plainpages=false alone left the warnings
+% unchanged.) This is the same class of bug \theHequation already
+% fixes in olympiad-marking.sty (multiple \solution/\subsolution blocks
+% each resetting `equation' to 0) and \theHtaskalphanum fixes below
+% (same idea, different hyperref mechanism -- \label-keyed counters
+% go through \theH<name>, but this automatic per-page anchor has its
+% own separate hypertexnames switch). Do NOT "fix" this instead via
+% \hypersetup{pageanchor=false} + \pageref*{LastPage} (tried and
+% reverted): that trades the warning for dead \pageref{LastPage} links
+% (lastpage's own "link does not work... using hyperref with disabled
+% option `pageanchor'" warning is telling the truth) -- hypertexnames
+% =false keeps the links live AND unique.
+\RequirePackage[colorlinks=true, linkcolor=., citecolor=black, final, hypertexnames=false]{hyperref}
 \RequirePackage{lastpage}
+
+% \theHtaskalphanum: same disambiguation \theHequation already applies
+% to `equation' -- taskalphanum (task[type=subproblem]'s (a)/(b)/(c)
+% counter) is DELIBERATELY reset to 0 at the start of every such list
+% (see olympiad-respa.sty/olympiad-ipho.sty's task environment: "always
+% starts at (a) regardless of any other task[type=subproblem] elsewhere
+% in the document"), so \refstepcounter{taskalphanum}'s hyperref
+% destination collides ("Object @taskalphanum.N already defined")
+% the moment a SECOND such list appears anywhere in the document.
+% \OlympCurrentPrefix is exactly the qualifier already used to keep
+% \thefigure unique per problem/subproblem block for the same reason --
+% reuse it here instead of inventing a new counter.
+\ExplSyntaxOn
+\AtBeginDocument{
+  \cs_if_exist:NT \theHtaskalphanum
+    { \renewcommand{\theHtaskalphanum}{\OlympCurrentPrefix.\alph{taskalphanum}} }
+}
+\ExplSyntaxOff
 
 \RequirePackage{tikz}
 \RequirePackage{circuitikz}
@@ -170,175 +183,19 @@
 \RequirePackage{pdflscape}
 \RequirePackage{ltablex}
 
+\RequirePackage{geometry}
+
+
+% Only \normalsize itself is touched (matches the reference marking.tex
+% this was ported from): \small, \footnotesize, \large, etc. keep
+% whatever absolute size article.cls assigned them for the class's
+% ORIGINAL base size -- intentional, not an oversight, since those
+% are mostly used for headings/labels that should stay legible
+% relative to the now-smaller body text, not shrink proportionally
+% with it.
 
 % ============================================================
-% PART 4 — LIST CONFIGURATION
-% ============================================================
-
-\setlist[itemize]{topsep=0pt, noitemsep}
-\setlist[itemize,1]{label={\tiny\textbullet}}
-\setlist[enumerate]{topsep=0pt, leftmargin=38pt, noitemsep}
-\setlist[enumerate,1]{label=\arabic*)}
-
-\AtBeginEnvironment{task}{%
-  \setlength{\itemsep}{6pt}%
-  \setlength{\topsep}{6pt}%
-}
-
-\renewenvironment{center}{\par\centering}{\par}
-% necessary for vertical spacing fine-tuning; can safely be commented out
-
-% ============================================================
-% PART 5 — CAPTION TYPOGRAPHY
-% ============================================================
-
-\captionsetup[figure]{
-  font       = {footnotesize, it},
-  labelfont  = {footnotesize, it},
-}
-
-
-% ============================================================
-% PART 6 — PROBLEM AND SOLUTION HEADING TYPOGRAPHY
-% ============================================================
-
-\renewcommand{\OlympProblemHeading}[1]{%
-  \centerline{\large\textbf{#1}}%
-}
-
-\renewcommand{\OlympSolutionHeading}[1]{%
-  \centerline{\large\textbf{#1}}%
-}
-
-\renewcommand{\part}[1]{%
-    \vspace{6pt}
-    \centerline{\textbf{#1}}
-}
-
-
-% ============================================================
-% PART 7 — HEADERS AND FOOTERS
-% ============================================================
-
-\RequirePackage{fancyhdr}
-
-% ==========================================
-% Define Base/Common Elements (Optional Helper)
-% ==========================================
-% Shared right header (Page n/N)
-\newcommand{\OlympCommonRightHead}{%
-  \fancyhead[R]{\textbf{\OlympString{page_abbrev}~\thepage/\pageref{LastPage}}}%
-}
-
-
-% ==========================================
-% Define Custom Page Styles
-% ==========================================
-
-% 1. "problems" Style
-\fancypagestyle{problems}{%
-  \fancyhf{}% Clear all headers and footers
-  \OlympCommonRightHead%
-  \fancyhead[L]{%
-    \textbf{\OlympString{name}~\OlympYear/\OlympString{tourname}}%
-  }%
-  \fancyfoot[L]{\textbf{\OlympString{duration}}}
-}
-
-% 2. "solutions" Style
-\fancypagestyle{solutions}{%
-  \fancyhf{}% Clear all headers and footers
-  \OlympCommonRightHead%
-  \fancyhead[L]{%
-    \textbf{\OlympString{name}~\OlympYear/\OlympString{tourname}/\OlympString{solutions}}%
-  }%
-}
-
-% 3. "answersheets" Style
-\fancypagestyle{answersheets}{%
-  \fancyhf{}% Clear all headers and footers
-  \OlympCommonRightHead%
-  \fancyhead[L]{%
-    \textbf{\OlympString{name}~\OlympYear/\OlympString{tourname}/\OlympString{answersheets}}%
-  }%
-  \fancyfoot[L]{\textbf{\OlympString{duration}}}
-}
-
-\fancypagestyle{firstpage}{%
-  \fancyhf{}%
-  \addtolength{\headsep}{-\problemsheaderExtra}%
-  \fancyhead[C]{}%
-  \renewcommand{\headrulewidth}{0pt}%
-  \fancyfoot[L]{%
-    \textbf{%
-      \OlympString{duration}%
-    }%
-  }%
-}
-
-% ==========================================
-% Initial State Activation
-% ==========================================
-\ifOlympMarking
-  \pagestyle{empty}
-\else
-  \ifOlympSolutions
-    \pagestyle{solutions}
-  \else
-    \pagestyle{problems}
-  \fi
-\fi
-
-% \problemsheader — use this instead of \thispagestyle{firstpage}
-% directly, in title_ru.tex and any other language variant.
-%
-% \enlargethispage must run in the main vertical list, BEFORE the
-% page breaks. Code inside \fancypagestyle{...}{...} only executes
-% later, during the output routine / \shipout -- by then the page's
-% content has already been cut to size using the OLD \textheight, so
-% \enlargethispage or \addtolength{\textheight}{...} placed there is
-% silently too late to have any effect. \addtolength{\headsep}{...}
-% is fine to keep inside \fancypagestyle, since header/footer
-% positioning genuinely is a shipout-time concern.
-%
-% Both adjustments are tied to \problemsheaderExtra so the amount
-% "stolen" from the page and the amount added to \headsep can never
-% drift out of sync.
-\newlength{\problemsheaderExtra}
-\setlength{\problemsheaderExtra}{6mm}
-
-\newcommand{\problemsheader}{%
-  \setcounter{page}{1}
-  \thispagestyle{firstpage}%
-  \begin{tabular}[c]{@{}c@{}}
-      \textbf{\underline{\OlympString{organizer}}} \\[2pt]
-      \textbf{\underline{\OlympString{firstpagesubtitle}}}\\
-  \end{tabular}%
-  \vspace{6pt}
-}
-
-% Solutions block header — emitted once, before first \solution
-\newcommand{\solutionsheader}{%
-  \newpage
-  \thispagestyle{solutions}%
-  \begin{center}
-    \large\textbf{\textit{\OlympString{solutionsheader}}}%
-  \end{center}%
-  \vspace{6pt}
-}
-\newcommand{\answersheetsheader}{%
-  \newpage
-  \pagestyle{answersheets}%
-  \begin{center}
-    {\large\textbf{\OlympString{answersheetsheader}}}%
-
-    \textit{\OlympString{answersheetheadersubtitle}}
-  \end{center}%
-  \vspace{6pt}%
-}
-
-% ============================================================
-% PART 8 — FIGURE COMMANDS
+% FIGURE COMMANDS
 % Known issues:
 %   - They don't support multiline PDF-formatted figures with .IPE metadata
 % ============================================================
@@ -388,7 +245,37 @@
 }
 
 % ============================================================
-% PART 9 — WRAPFIGURE UNDERFULL HBOX SUPPRESSION
+% CAPTION TYPOGRAPHY
+% ============================================================
+
+\captionsetup[figure]{
+  font       = {footnotesize, it},
+  labelfont  = {footnotesize, it},
+}
+
+% ============================================================
+% REFERENCES TO FIGURES
+% ============================================================
+
+\newcommand{\figref}[1]
+{
+  \ifOlympProblems%
+  \arabic{problemnum}\printcounter{subproblemnum}.\ref{fig:\OlympCurrentPrefix.#1}%
+  \fi%
+  \ifOlympSolutions%
+  \arabic{solnum}\printcounter{subsolnum}.\ref{fig:\OlympCurrentPrefix.#1}%
+  \fi%
+}
+% (figcounter resets per \problem/\subproblem/\subsolution, see
+% Part 5/9). Authors never type or track the problem number
+% themselves: \OlympCurrentPrefix is resolved at compile time, so
+% figure references survive problems being reordered/renumbered by
+% build.py. Pairs with the label key that \pic/\cpic/\cpics in
+% olympiad-layout.sty must use:
+%   \label{fig:\OlympCurrentPrefix.\thefigcounter}
+
+% ============================================================
+% — WRAPFIGURE UNDERFULL HBOX SUPPRESSION
 % ============================================================
 
 \RequirePackage{etoolbox}
@@ -396,10 +283,10 @@
   \setlength{\emergencystretch}{1em}%
 }
 
+% ===============================================================
+% ANSWER SHEETS --- BASE COMMANDS
+% ===============================================================
 
-% ============================================================
-% PART 10 — ANSWER SHEETS
-% ============================================================
 \RequirePackage{framed}
 \RequirePackage{multicol} \setlength{\multicolsep}{0pt} % for answer sheets
 
@@ -419,43 +306,6 @@
 }{%
   \end{minipage}\end{framed}
 }
-
-% Must require using \problem{...} first
-\NewDocumentEnvironment{answerbox}{ m o }{%
-  \stepcounter{tasknum}%
-  \begin{framed}\noindent
-  \begin{minipage}[t][#1][t]{\linewidth}
-  \noindent\textbf{\OlympCurrentPrefix.\arabic{tasknum}}%
-  \IfValueT{#2}{\ifOlympShowPoints \textbf{(#2~\OlympString{points_answersheet})}\fi}%
-  \par\bigskip
-}{%
-  \end{minipage}\end{framed}
-}
-
-\NewDocumentEnvironment{answerboxpart}{ m o }{%
-  % #1 = height, #2 = optional points
-  \setcounter{tasknum}{0}%
-  \begin{framed}\noindent
-  \begin{minipage}[t][#1][t]{\linewidth}
-  \noindent\textbf{\OlympCurrentPrefix}%
-  \IfValueT{#2}{\ifOlympShowPoints \textbf{(#2~\OlympString{points_answersheet})}\fi}%
-  \par\bigskip
-}{%
-  \end{minipage}\end{framed}
-}
-
-% ...cont = Continuation of the answerbox if there's a pagebreak mid-answerbox
-\NewDocumentEnvironment{answerboxcont}{ m }{%
-  \begin{framed}\noindent\begin{minipage}[t][#1][t]{\linewidth}
-  \noindent\textbf{\OlympCurrentPrefix.\arabic{tasknum}~\OlympString{continued}}%
-  \par\bigskip
-}{\end{minipage}\end{framed}}
-
-\NewDocumentEnvironment{answerboxpartcont}{ m }{%
-  \begin{framed}\noindent\begin{minipage}[t][#1][t]{\linewidth}
-  \noindent\textbf{\OlympCurrentPrefix~\OlympString{continued}}%
-  \par\bigskip
-}{\end{minipage}\end{framed}}
 
 % =================
 % MILLIMETER SCALE FOR EXPERIMENT ANSWER SHEETS
@@ -529,19 +379,28 @@
   \end{blankbox}
 }
 
-\fi % \ifOlympStyleRespa
+\renewenvironment{center}{\par\centering}{\par}
+% necessary for vertical spacing fine-tuning; can safely be commented out
 
-% --- future styles get appended here as additional sibling blocks: ---
-% \ifOlympStyleInternational
-% \OlympLayoutMatchedtrue
-%   ...
-% \fi
+% ====================================================
+%
+% ---------------------- STYLES ----------------------
+%
+% ====================================================
+
+\ifOlympStyleRespa
+\RequirePackage{olympiad-respa}
+\fi
+
+\ifOlympStyleIpho
+\RequirePackage{olympiad-ipho}
+\fi
 
 \ifOlympLayoutMatched\else
   \PackageWarning{olympiad-layout}
     { No~layout~is~defined~in~this~package~for~the~active~style~--~
       check~olympiad.cls's~style=...~option;~olympiad-layout.sty~
-      currently~only~implements~style=respa }
+      currently~only~implements~style=respa/ipho }
 \fi
 
 \endinput

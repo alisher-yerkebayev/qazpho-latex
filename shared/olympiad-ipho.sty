@@ -1,0 +1,477 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{olympiad-ipho}[2027/01/01 IPhO-style olympiad-layout extension]
+
+\OlympLayoutMatchedtrue
+
+
+% ============================================================
+% FONTS --- 9pt as defined by .cls
+% ============================================================
+\definecolor{ipho-def}{rgb}{0,0,.7}
+
+% Vendored at shared/fonts/ (NotoSans-{Regular,Bold,Italic,BoldItalic}.ttf),
+% found via the TTFONTS kpathsea search path the project's root
+% .latexmkrc sets (mirrors how TEXINPUTS resolves \input{competitions/...}
+% regardless of compile-directory depth) -- no Path= key here, same
+% reasoning as respa's CMU Serif block in olympiad-respa.sty. Ligatures=TeX
+% for the same reason respa needs it: this corpus's problem/solution prose
+% relies on classic TeX ligatures (---, ``/'') throughout.
+\setmainfont{NotoSans-Regular}[
+  Extension = .ttf,
+  BoldFont = NotoSans-Bold,
+  ItalicFont = NotoSans-Italic,
+  BoldItalicFont = NotoSans-BoldItalic,
+  Ligatures = TeX,
+]
+\setsansfont{NotoSans-Regular}[
+  Extension = .ttf,
+  BoldFont = NotoSans-Bold,
+  ItalicFont = NotoSans-Italic,
+  BoldItalicFont = NotoSans-BoldItalic,
+  Ligatures = TeX,
+]
+% No \setmonofont -- no monospace Noto file is vendored; fontspec falls
+% back to its own default (Latin Modern Mono) until one is added here.
+
+% ============================================================
+% PAGE GEOMETRY
+% ============================================================
+
+% TODO: Redefine Geometry manually (not to be touched by Claude)
+\geometry{
+  a4paper,
+  left        = 20mm,
+  right       = 20mm,
+  top         = 15mm,
+  bottom      = 20mm,
+  headheight  = 35mm,
+  headsep     = 15pt,
+  includehead,
+}
+
+\ifOlympJury
+  \geometry{
+    left        = 5mm,
+    right       = 5mm,
+    top         = 5mm,
+    bottom      = 5mm,
+    headheight  = 0mm,
+    headsep     = 15pt,
+  }
+\renewcommand{\normalsize}{\fontsize{8}{9}\selectfont}%
+\normalsize
+\fi %\ifOlympJury
+
+% ============================================================
+% TYPOGRAPHY
+% ============================================================
+
+\setlength{\parindent}{0pt}
+\setlength{\intextsep}{0pt}      % no extra space around floats
+
+% \setcounter{page}{1} inside \problem/\solution below (every ipho
+% problem restarts its own page count for the T<n>-<page> cipher) used
+% to trigger xdvipdfmx's "Object @page.N already defined" the moment a
+% SECOND problem repeated a page number -- fixed once, for every style,
+% via plainpages=false on hyperref itself (see olympiad-layout.sty's
+% own comment on that option for why \hypersetup{pageanchor=false} is
+% the wrong fix: it silences the warning by deleting the destinations
+% \pageref points at, rather than making them unique).
+
+% ============================================================
+% LIST CONFIGURATION
+% ============================================================
+
+\setlist[itemize]{topsep=0pt, noitemsep}
+\setlist[itemize,1]{label={\tiny\textbullet}}
+\setlist[enumerate]{topsep=0pt, leftmargin=38pt, noitemsep}
+\setlist[enumerate,1]{label=\arabic*)}
+
+% ============================================================
+% task ENVIRONMENT
+% ============================================================
+\ExplSyntaxOn
+\bool_new:N \l__olymp_task_first_item_bool
+\tl_new:N \l__olymp_task_points_tl
+
+% We redeclare the keys to just "sink" (ignore) the values. 
+% This ensures [type=subproblem] doesn't throw an "unrecognised key" 
+% error, but naturally falls back to the framed style.
+\DeclareKeys[olymp/task]
+  {
+    type .code:n = {} ,
+  }
+
+% \New (not \Renew): olympiad.cls no longer defines `task` itself (it
+% moved out to each style's own .sty, see olympiad.cls's "What this
+% file provides" note) and olympiad-respa.sty is mutually exclusive
+% with this file (only one style's .sty ever loads per compile), so
+% there's nothing to renew here -- task doesn't exist yet at this
+% point when style=ipho is active.
+\NewDocumentEnvironment{task}{ O{} }
+  {
+    % Process the options (which are ignored per the declaration above)
+    \SetKeys[olymp/task]{#1}
+    
+    \bool_set_true:N \l__olymp_task_first_item_bool
+    
+    % Save the standard \item and current list depth. 
+    % This prevents standard inner lists (like itemize) from breaking.
+    \let\olymp@orig@item\item
+    \edef\olymp@task@listdepth{\the\@listdepth}
+    
+    \RenewDocumentCommand{\item}{ o }
+      {
+        % Check if we are inside a nested list environment
+        \ifnum\@listdepth>\olymp@task@listdepth\relax
+          \IfValueTF{##1}{ \olymp@orig@item[##1] }{ \olymp@orig@item }
+        \else
+          % --- TOP-LEVEL TASK ITEM ---
+          \bool_if:NTF \l__olymp_task_first_item_bool
+            {
+              % First item: just switch the flag
+              \bool_set_false:N \l__olymp_task_first_item_bool
+            }
+            {
+              % Subsequent items: Close the PREVIOUS minipage and framed block
+              \end{minipage}
+              \parbox{.1\textwidth}{
+                \hspace{1em}
+                \tl_if_empty:NF \l__olymp_task_points_tl
+                  { \l__olymp_task_points_tl }
+              }
+              \end{framed}
+            }
+          
+          % Process the NEW item's points from the optional argument
+          \IfValueTF{##1}
+            { \tl_set:Nn \l__olymp_task_points_tl {##1} }
+            { \tl_clear:N \l__olymp_task_points_tl }
+            
+          \refstepcounter{tasknum}
+          
+          % Open the NEW item's framed block and minipages
+          \begin{framed}
+            \noindent
+            \parbox[t]{.1\textwidth}{
+              \hspace{1em}
+              % Note: Adjust \arabic{subproblemnum} to \printcounter{subproblemnum} 
+              % if you rely on a custom counter macro from your class.
+              \noindent\textbf{\printcounter{subproblemnum}.\arabic{tasknum}}
+            }
+            \begin{minipage}[t]{.79\textwidth}
+        \fi
+      }
+  }
+  {
+    % End of environment: Close the very last item's blocks if items existed
+    \bool_if:NF \l__olymp_task_first_item_bool
+      {
+        \end{minipage}
+        \parbox{.1\textwidth}{
+          \hspace{1em}
+          \tl_if_empty:NF \l__olymp_task_points_tl
+            { \l__olymp_task_points_tl \nobreakspace pt }
+        }
+        \end{framed}
+      }
+  }
+\ExplSyntaxOff
+
+% ============================================================
+% CAPTION TYPOGRAPHY
+% ============================================================
+
+\captionsetup[figure]{
+  font       = {footnotesize, it},
+  labelfont  = {footnotesize, it},
+}
+
+% ============================================================
+% \tasksol, \taskref, \solref
+% ============================================================
+% TODO: repurpose for ipho; currently copied from respa
+\newcommand{\tasksol}{%
+  \vspace{6pt}%
+  \hspace*{18pt}%
+  \stepcounter{tasksolnum}%
+  \textbf{\printcounter{subsolnum}.\thetasksolnum}~%
+}
+
+\newcommand{\taskref}[1]{\textbf{\printcounter{subproblemnum}.#1}}
+\newcommand{\solref}[1]{\textbf{\printcounter{subsolnum}.#1}}
+
+% ============================================================
+% PROBLEM AND SOLUTION HEADING TYPOGRAPHY
+% ============================================================
+
+\newcommand{\OlympProblemHeading}[1]{%
+  {\noindent\fontsize{16pt}{14pt}\fontshape{bf}\selectfont\textcolor{ipho-def}{\textbf{#1}}}
+}
+\newcommand{\OlympSolutionHeading}[1]{%
+  {\noindent\fontsize{16pt}{14pt}\fontshape{bf}\selectfont\textcolor{ipho-def}{\textbf{#1}}}
+}
+% \renewcommand (not \newcommand): \part is article.cls's own
+% sectioning command, already defined before this file loads --
+% \newcommand on an existing name is a hard "already defined" error.
+% Also takes 2 args (#1=font size in pt, #2=title), unlike respa's
+% \part (1 arg, no size control) -- both are valid per-style designs
+% since nothing outside each style's own .sty calls \part today, but
+% flagging the mismatch in case that wasn't intentional.
+\renewcommand{\part}[1]{%
+    \vspace{6pt}\noindent%
+    { \hspace*{-3pt}\textbf{#1}}\nopagebreak%
+}
+
+% ============================================================
+% \problem                \solution
+% \subproblem             \subsolution
+% ============================================================
+
+\newcommand{\problem}[2]{%
+  % #1 = title, #2 = points string
+  \stepcounter{problemnum}%
+  \setcounter{tasknum}{0}%
+  \setcounter{figcounter}{0}%
+  \setcounter{page}{1}
+  \par%
+  \OlympProblemHeading{%
+    #1~(#2 \OlympString{points_long})%
+  }%
+  \vspace{6pt}
+}
+
+
+\newcommand{\solution}[2]{%
+  % #1 = title, #2 = points string
+  \stepcounter{solnum}%
+  \setcounter{tasksolnum}{0}%
+  \setcounter{equation}{0}%
+  \stepcounter{blocknum}%
+  \setcounter{page}{1}
+  \par%
+  \OlympSolutionHeading{%
+    #1~(#2 \OlympString{points_long})%
+  }\par%
+  \vspace{6pt}
+}
+
+\newcommand{\subproblem}[2]{%
+  % #1 = label (e.g. А), #2 = points string
+  \stepcounter{subproblemnum}%
+  \vspace{6pt}\par\noindent%
+    { \hspace*{-3pt}\fontsize{10pt}{10pt}%
+    \selectfont\textcolor{ipho-def}%
+    {%
+      \textbf{\OlympString{part}~\printcounter{subproblemnum} --- #1 (#2 \OlympString{points_short})}%
+    }%
+    }\nopagebreak%
+  \vspace{6pt}
+}
+
+\newcommand{\subsolution}[2]{%
+  % #1 = label (e.g. А), #2 = points string
+  \stepcounter{subsolnum}%
+  \setcounter{tasksolnum}{0}%
+  \par%
+  \vspace{6pt}\noindent%
+    { \hspace*{-3pt}\fontsize{11pt}{11pt}%
+    \selectfont\textcolor{ipho-def}%
+    {%
+      \textbf{\OlympString{part}~\printcounter{subsolnum} --- #1 (#2 \OlympString{points_short})}%
+    }%
+    }\nopagebreak%
+  \vspace{6pt}
+}
+
+% ============================================================
+% HEADERS AND FOOTERS
+% ============================================================
+\RequirePackage{fancyhdr}
+
+% TODO: adapt from ipho2016.cls (currently, it's copied from respa)
+% Shared right header (Page n/N)
+\makeatletter
+% Define the helper macros outside so they tokenize '@' properly
+\newcommand{\letter@header}%
+{%
+  \ifOlympMarking M \else%
+    \ifOlympExperiment E\else T\fi
+  \fi
+}
+
+\newcommand{\num@header}{%
+  \ifOlympSolutions%
+    \arabic{solnum}%
+  \else%
+    \ifOlympMarking%
+      \arabic{solnum}%
+    \else%
+      \arabic{problemnum}%
+    \fi%
+  \fi%
+}
+
+% Define your main styling command
+\newcommand{\OlympCommonRightHead}{%
+  \renewcommand{\headrulewidth}{2pt}%
+  \fancyhead[R]{\textbf{\fontsize{2cm}{2.5cm}\selectfont \letter@header\num@header-\thepage}\\\rm \OlympString{name}~\OlympYear}%
+}
+\makeatother
+
+% not used in style=ipho
+\newlength{\problemsheaderExtra}
+\setlength{\problemsheaderExtra}{6mm}
+
+% 1. "problems" Style
+\fancypagestyle{problems}{%
+  \fancyhf{}% Clear all headers and footers
+  \OlympCommonRightHead%
+  \fancyhead[L]{%
+    \textbf{\\\vfill \fontsize{.5cm}{.5cm} \selectfont%
+    \ifOlympTheory\OlympString{theory}\fi%
+    \ifOlympExperiment\OlympString{experiment}\fi%
+    } \\ \includegraphics[height=2cm]{example-image}
+  }%
+}
+
+% 2. "solutions" Style
+\fancypagestyle{solutions}{%
+  \fancyhf{}% Clear all headers and footers
+  \OlympCommonRightHead%
+  \fancyhead[L]{%
+    \textbf{\\\vfill \fontsize{.5cm}{.5cm} \selectfont%
+    \ifOlympTheory\OlympString{theory}\fi%
+    \ifOlympExperiment\OlympString{experiment}\fi%
+    } \\ \includegraphics[height=2cm]{example-image}
+  }%
+}
+
+% 3. "marking" Style
+\fancypagestyle{marking}{%
+  \fancyhf{}% Clear all headers and footers
+  \OlympCommonRightHead%
+  \fancyhead[L]{%
+    \textbf{\\\vfill \fontsize{.5cm}{.5cm} \selectfont%
+    \ifOlympTheory\OlympString{theory}\fi%
+    \ifOlympExperiment\OlympString{experiment}\fi%
+    /\OlympString{marking_schemes}
+    } \\ \includegraphics[height=2cm]{example-image}
+  }%
+}
+
+% 4. "answersheets" Style --- not used in style=ipho
+\fancypagestyle{answersheets}{%
+  \fancyhf{}% Clear all headers and footers
+  \OlympCommonRightHead%
+  \fancyhead[L]{%
+    \textbf{\\\vfill \fontsize{.5cm}{.5cm} \selectfont%
+    \ifOlympTheory\OlympString{theory}\fi%
+    \ifOlympExperiment\OlympString{experiment}\fi%
+    /\OlympString{answersheets}
+    } \\ \includegraphics[height=2cm]{example-image}
+  }%
+}
+
+% only valid for style=respa; left here for backwards-compatibility
+% (though it's not supposed to be called outside style=ipho)
+\fancypagestyle{firstpage}{%
+  \fancyhf{}%
+  \addtolength{\headsep}{-\problemsheaderExtra}%
+  \fancyhead[C]{}%
+  \renewcommand{\headrulewidth}{0pt}%
+  \fancyfoot[L]{%
+    \textbf{%
+      \OlympString{duration}%
+    }%
+  }%
+}
+
+% ==========================================
+% Initial State Activation
+% ==========================================
+\ifOlympJury
+  \pagestyle{empty}
+\else
+  \ifOlympSolutions
+    \pagestyle{solutions}
+  \else
+    \ifOlympMarking
+      \pagestyle{marking}
+    \else
+      \pagestyle{problems}
+    \fi
+  \fi
+\fi
+
+% TODO: allow \problemsheader to handle the fancyheader
+% \problemsheader — use this instead of \thispagestyle{firstpage}
+% directly, in title_ru.tex and any other language variant.
+%
+\newcommand{\problemsheader}{%
+  \pagestyle{problems}%
+}
+
+% Solutions block header — emitted once, before first \solution
+\newcommand{\solutionsheader}{%
+  \newpage
+  \pagestyle{solutions}%
+}
+
+\makeatletter
+\newcommand{\answersheetsheader}{
+  \renewcommand{\letter@header}{A}
+  \pagestyle{problems}
+}
+\makeatother
+
+\makeatletter
+\newcommand{\markingheader}%
+{%
+  \newpage
+  \renewcommand{\letter@header}{M}
+  \pagestyle{marking}
+}
+\makeatother
+
+% ===============================================================
+% ANSWER SHEETS - CONTINUATION FROM OLYMPIAD-LAYOUT.STY
+% ===============================================================
+
+% Must require using \problem{...} first
+\NewDocumentEnvironment{answerbox}{ m o }{%
+  \stepcounter{tasknum}%
+  \begin{framed}\noindent
+  \begin{minipage}[t][#1][t]{\linewidth}
+  \noindent\textbf{\printcounter{subproblemnum}.\arabic{tasknum}}%
+  \IfValueT{#2}{\ifOlympShowPoints (#2\nobreakspace pt)\fi}%
+  \par\bigskip
+}{%
+  \end{minipage}\end{framed}
+}
+
+\NewDocumentEnvironment{answerboxpart}{ m o }{%
+% not needed in style=ipho; style=respa option is copied
+  % #1 = height, #2 = optional points
+  \setcounter{tasknum}{0}%
+  \begin{framed}\noindent
+  \begin{minipage}[t][#1][t]{\linewidth}
+  \noindent\textbf{\OlympCurrentPrefix}%
+  \IfValueT{#2}{\ifOlympShowPoints (#2)\fi}%
+  \par\bigskip
+}{%
+  \end{minipage}\end{framed}
+}
+
+% ...cont = Continuation of the answerbox if there's a pagebreak mid-answerbox
+\NewDocumentEnvironment{answerboxcont}{ m }{%
+  \begin{framed}\noindent\begin{minipage}[t][#1][t]{\linewidth}
+  \noindent\textbf{\OlympCurrentPrefix.\arabic{tasknum}~\OlympString{continued}}%
+  \par\bigskip
+}{\end{minipage}\end{framed}}
+
+\NewDocumentEnvironment{answerboxpartcont}{ m }{%
+  \begin{framed}\noindent\begin{minipage}[t][#1][t]{\linewidth}
+  \noindent\textbf{\OlympCurrentPrefix~\OlympString{continued}}%
+  \par\bigskip
+}{\end{minipage}\end{framed}}

@@ -81,7 +81,7 @@
 \RequirePackage{xparse}
 \RequirePackage{tabularx}   % no-op if olympiad-layout.sty already loaded it
 
-\newcommand{\markingheader}{%
+\newcommand{\juryheader}{%
 \newpage
 \ifOlympTheory%
 \stepcounter{solnum}%
@@ -489,6 +489,7 @@
   {
     \begin{center}\footnotesize Auto-generated~text:~это~---~\textit{черновая~версия}~марк-схемы.~Финальную~версию~марк-схемы~нужно~сгенерировать~через~{\ttfamily extract-marking.py},~и~приписать~{\ttfamily \textbackslash input\{marking\textunderscore ru.tex\}}~сразу~в~конце~своего~решения.\end{center}
     \begin{center}
+    \makegapedcells
     \begin{tabularx}{\linewidth}{|X|>{\centering\arraybackslash}p{0.12\linewidth}|}
       \hline
       \textbf{\OlympStringFallback{marking_content}} & \textbf{\OlympStringFallback{marking_points}} \\ \hline
@@ -505,33 +506,33 @@
 
 \ExplSyntaxOff
 
-% ---- \OlympMarkPick -- generic type=solutions/marking switch ------
+% ---- \OlympJuryPick -- generic type=solutions/marking switch ------
 % Used by extract-marking.py's generated marking_ru.tex / marking_kz.tex
 % to let ONE generated file serve both a type=solutions compile and a
 % type=marking compile: header row, the extra MP/A columns on every
 % row, intra-group \cline widths, the total row, and the mid-table
 % \pagebreak all differ between the two -- picked here via
-% \ifOlympMarking rather than in Python, since \documentclass (and hence
+% \ifOlympJury rather than in Python, since \documentclass (and hence
 % the type) never appears inside solution.tex itself.
 %
 % Safe for ordinary running text / table CELLS (used there as a normal
 % 2-argument macro, expanding like any other macro call during
 % typesetting). NOT safe inside a tabularx COLUMN-SPEC argument, e.g.
-% \begin{tabularx}{\linewidth}{\OlympMarkPick{A}{B}}: array/tabularx's
+% \begin{tabularx}{\linewidth}{\OlympJuryPick{A}{B}}: array/tabularx's
 % preamble scanner (\@mkpream/\@testpach) walks that argument ONE
 % TOKEN AT A TIME, expanding each token in isolation to see what
-% column-type it names. \OlympMarkPick is a 2-argument macro, so
-% "expanding" the lone \OlympMarkPick token makes TeX go hunting for
+% column-type it names. \OlympJuryPick is a 2-argument macro, so
+% "expanding" the lone \OlympJuryPick token makes TeX go hunting for
 % its {A}{B} arguments in whatever happens to follow inside array's
 % own internal scanning code -- NOT the two braces actually written
 % next to it -- and array errors out with something like "Illegal
-% pream-token (\OlympMarkPick): `c' used". This is true no matter how
-% \OlympMarkPick itself is defined (even a 0-argument macro that
+% pream-token (\OlympJuryPick): `c' used". This is true no matter how
+% \OlympJuryPick itself is defined (even a 0-argument macro that
 % expands to several column-spec tokens in one go breaks the same
 % way, since the scanner only re-processes ONE further token of the
-% expansion). Use \OlympMarkBeginTable (below) for the column spec.
+% expansion). Use \OlympJuryBeginTable (below) for the column spec.
 %
-% Two more hard-won constraints on using \OlympMarkPick INSIDE a table:
+% Two more hard-won constraints on using \OlympJuryPick INSIDE a table:
 %  * Each branch must be a COMPLETE physical row (from the first cell
 %    through the trailing \\), never a partial fragment like "{}{ & &
 %    X}" meant to splice extra trailing cells onto a row shared with
@@ -540,28 +541,28 @@
 %    \halign's row/column bookkeeping and raises "Incomplete \iffalse"
 %    once enough of the table has been read for it to surface --
 %    reproducible with nothing but plain \iffalse & \fi inside a bare
-%    tabular row, no \OlympMarkPick involved. extract-marking.py's
+%    tabular row, no \OlympJuryPick involved. extract-marking.py's
 %    build_rows() always emits whole rows for exactly this reason.
-%  * Never put \begin{env}/\end{env} inside a \OlympMarkPick argument
+%  * Never put \begin{env}/\end{env} inside a \OlympJuryPick argument
 %    (e.g. to conditionally close/reopen the tabularx mid-table): LaTeX
 %    needs to encounter \begin/\end directly in the main input stream,
 %    not read as captured macro-argument text, or you get "Extra }, or
 %    forgotten $." / "Missing } inserted" depending on which branch is
-%    active. Emit the \end{tabularx}/\OlympMarkBeginTable/\begin{...}
-%    sequence unconditionally instead (\OlympMarkBeginTable already
-%    resolves per \ifOlympMarking, so in the untaken mode it's an
+%    active. Emit the \end{tabularx}/\OlympJuryBeginTable/\begin{...}
+%    sequence unconditionally instead (\OlympJuryBeginTable already
+%    resolves per \ifOlympJury, so in the untaken mode it's an
 %    invisible same-colspec seam), and wrap only small, &-free
 %    fragments like \pagebreak or a single repeated header row in their
-%    own \OlympMarkPick{}{...}. See extract-marking.py's
+%    own \OlympJuryPick{}{...}. See extract-marking.py's
 %    generate_marking_tex() for the working pattern.
-\newcommand{\OlympMarkPick}[2]{\ifOlympMarking#2\else#1\fi}
+\newcommand{\OlympJuryPick}[2]{\ifOlympJury#2\else#1\fi}
 
-% ---- \OlympMarkBeginTable -- switchable tabularx COLUMN SPEC ------
-% \OlympMarkBeginTable{<solutions colspec>}{<marking colspec>} opens
+% ---- \OlympJuryBeginTable -- switchable tabularx COLUMN SPEC ------
+% \OlympJuryBeginTable{<solutions colspec>}{<marking colspec>} opens
 % the tabularx itself (i.e. replaces \begin{tabularx}{\linewidth}{...}
 % -- the matching \end{tabularx} is written as usual). It sidesteps
-% \OlympMarkPick's column-spec limitation (see above) by resolving
-% \ifOlympMarking...\fi down to the chosen branch's PLAIN CHARACTERS
+% \OlympJuryPick's column-spec limitation (see above) by resolving
+% \ifOlympJury...\fi down to the chosen branch's PLAIN CHARACTERS
 % via a single \edef pass BEFORE \begin{tabularx} is invoked at all --
 % safe, because both branches are literal, already-typeset-safe
 % column-spec text: \centering/\arraybackslash are \protected
@@ -569,9 +570,9 @@
 % By the time the real \begin{tabularx} call runs, array's scanner
 % sees only ordinary characters, exactly as if the chosen colspec had
 % been hand-written -- no macro call left for it to trip over.
-\newcommand{\OlympMarkBeginTable}[2]{%
+\newcommand{\OlympJuryBeginTable}[2]{%
   \edef\Olymp@marktable@invoke{%
-    \noexpand\begin{tabularx}{\linewidth}{\ifOlympMarking#2\else#1\fi}%
+    \noexpand\begin{tabularx}{\linewidth}{\ifOlympJury#2\else#1\fi}%
   }%
   \Olymp@marktable@invoke
 }
@@ -630,8 +631,8 @@
 \newcounter{tasktotalrows}
 
 % NOTE on why every command below is DUPLICATED wholesale into an
-% \ifOlympMarking branch and an \else branch, instead of writing one
-% definition that puts a bare `\ifOlympMarking&&&\fi' (or similar)
+% \ifOlympJury branch and an \else branch, instead of writing one
+% definition that puts a bare `\ifOlympJury&&&\fi' (or similar)
 % INSIDE the table row it emits:
 %
 % TeX's alignment scanner (\halign, which tabularx/tabular both sit
@@ -650,12 +651,12 @@
 % in test/): every marking-scheme-experiment table failed with this
 % exact cascade under type=solutions.
 %
-% The fix is to resolve \ifOlympMarking exactly ONCE, at package-load
+% The fix is to resolve \ifOlympJury exactly ONCE, at package-load
 % time (here), long before \halign ever starts reading a row, and
 % commit to one COMPLETE, `&'-consistent macro body per mode. Each
 % branch below emits the exact same cells the old single-body version
 % did for that mode -- nothing else changes.
-\ifOlympMarking
+\ifOlympJury
 \newenvironment{mse}{% Marking Scheme Experiment
 \makegapedcells
   \setcounter{taskid}{0}%
@@ -692,7 +693,7 @@
 
 % blockbegin / blockend: "Block-scheme" -- optionally, can be used to make a separate block with its own subparts \bscheme
 % \blockbegin{<descriptor>}{<total-points>}{<nrows>}
-\ifOlympMarking
+\ifOlympJury
 \NewDocumentCommand{\blockbegin}{m m m}{%
   \\ \hline \stepcounter{taskid}
   \setcounter{tasktotalrows}{#3}%
@@ -709,7 +710,7 @@
 \fi
 
 %\bscheme{<descriptor>}{<points>}
-\ifOlympMarking
+\ifOlympJury
 \NewDocumentCommand{\bscheme}{m m}{%
     \\ \cline{5-5}\cline{7-7}
 	& --- #1 & #2 &&&&
@@ -722,7 +723,7 @@
 \fi
 
 %\bremark{<descriptor>}{<points>} --- italicized \bscheme
-\ifOlympMarking
+\ifOlympJury
 \NewDocumentCommand{\bremark}{m m}{%
     \\ % no \cline at all
 	& ---\ --- \textit{#1} & \textit{#2} &&&&
@@ -741,7 +742,7 @@
 
 % \escheme: "exp-scheme", a standard single-line scheme
 % \escheme{<descriptor>}{<points>}
-\ifOlympMarking
+\ifOlympJury
 \NewDocumentCommand{\escheme}{m m}{%
   \\ \hline \stepcounter{taskid}
 	\textbf{M\thetaskid}%
@@ -755,7 +756,7 @@
 }
 \fi
 
-\ifOlympMarking
+\ifOlympJury
 \newcommand{\etotal}[1]
 {\\ \hline
 \multicolumn{2}{|l|}{\OlympString{marking_total}}

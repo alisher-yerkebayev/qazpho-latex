@@ -6,9 +6,54 @@
     \ifOlympLangRu Решения\fi%
     \ifOlympLangKz Шешiмдер\fi%
 }
+\SetOlympString{theory}{Теория}
+\SetOlympString{experiment}{Эксперимент}
+
+% ------------------------------------------------------------------
+% logo / icon_theor / icon_exp -- optional \includegraphics paths,
+% identical in both languages (no \ifOlympLangRu/\ifOlympLangKz
+% branching needed), so title_*.tex can \includegraphics{\OlympString{...}}
+% instead of hard-coding a path. Relative to wherever the root document
+% actually compiles from (<family>/<stage>/<year>/<grade>/<language>/,
+% always 5 path segments below shared/example/ for THIS family) -- not
+% an absolute-from-repo-root path like "competitions/..." or
+% "shared/example/...", which only works in THIS repo's own layout.
+% Someone who takes just shared/ into their own project keeps this
+% working as long as they preserve the family/stage/year/grade/language
+% nesting depth; the file names themselves can freely change year to
+% year without ever touching this line, since the relative distance
+% to them never does.
+%
+% logo lives one level above the family folder (shared across every
+% stage/year of respa, e.g. an organizer logo); icon_theor/icon_exp
+% live at the YEAR folder (this year's own artwork, replaced yearly at
+% the same relative path, never renamed).
+%
+% Not every competition/style HAS a logo or tour icon -- title_*.tex
+% uses \OlympIfStringDefined so leaving one of these commented out (or
+% never defining it) skips that \includegraphics entirely instead of
+% erroring on a missing file.
+
+% ====================================================================
+
+% IF YOU HAVE ANY LOGO/ICON, INCLUDE THE RELATIVE PATH THERE
+
+\SetOlympString{logo}{../../../../../daryn_logo.png}
+\SetOlympString{icon_theor}{../../icon_theor.png}
+\SetOlympString{icon_exp}{../../icon_exp.png}
+
+% Элемент "../" указывает на переход назад в иерархии папок
+
+% ====================================================================
+
 \SetOlympString{answersheets}{%
 \ifOlympLangRu Листы ответов\fi%
 \ifOlympLangKz Жауап парақтары\fi%
+}
+
+\SetOlympString{part}{%
+\ifOlympLangRu Часть\fi%
+\ifOlympLangKz Бөлім\fi%
 }
 
 \SetOlympString{answersheetsheader}{%
@@ -42,11 +87,13 @@
         \ifOlympProblems Рис.~\theproblemnum\printcounter{subproblemnum}.\thefigcounter.\fi%
         \ifOlympSolutions Рис.~\thesolnum\printcounter{subsolnum}.\thefigcounter.\fi%
         \ifOlympMarking Рис.~\thesolnum\printcounter{subsolnum}.\thefigcounter.\fi%
+        \ifOlympJury Рис.~\thesolnum\printcounter{subsolnum}.\thefigcounter.\fi%
     \fi%
     \ifOlympLangKz%
         \ifOlympProblems \theproblemnum\printcounter{subproblemnum}.\thefigcounter-сурет.\fi%
         \ifOlympSolutions \thesolnum\printcounter{subsolnum}.\thefigcounter-сурет.\fi%
         \ifOlympMarking \thesolnum\printcounter{subsolnum}.\thefigcounter-сурет.\fi%
+        \ifOlympJury \thesolnum\printcounter{subsolnum}.\thefigcounter-сурет.\fi%
     \fi%
 }
 
@@ -123,6 +170,10 @@
     \ifOlympLangKz \textbf{Ұпайлар}\fi%
 }
 \SetOlympString{marking_scheme}{Марк-схема}   % identical in both languages
+\SetOlympString{marking_schemes}{%
+    \ifOlympLangRu Марк-схемы\fi%
+    \ifOlympLangKz Марк-схемалар\fi%
+}   % identical in both languages
 \SetOlympString{grade_text}{%
     \ifOlympLangRu класс\fi%
     \ifOlympLangKz сынып\fi%
