@@ -1,8 +1,10 @@
 # extract-marking.py — Generate a camera-ready marking-scheme table
 # (marking_ru.tex / marking_kz.tex) from an olympiad solution.tex source.
 #
-# Usage: python extract-marking.py <solution.tex> <out_dir> [ru|kz]
-#   lang defaults to 'ru' if omitted.
+# Usage: python extract-marking.py <solution.tex> <out_dir> [ru|kz] [respa|ipho]
+#   lang defaults to 'ru' if omitted. style is asked interactively if
+#   omitted -- see ask_style() below for why it matters and
+#   find_target_block() for what it actually changes.
 # Writes <out_dir>/marking_<lang>.tex, meant to be \input at the very end
 # of the solution — exactly what the banner in \showmarking (see
 # olympiad-marking.sty) tells the author to do once the rough draft is
@@ -39,20 +41,34 @@
 #    BEFORE \begin{tabularx} is ever invoked, so array only ever sees a
 #    literal, hand-written-looking colspec. See olympiad-marking.sty
 #    for both macros.
-# 2. Numbering: the task-number column (long format) still embeds the live
-#    \OlympCurrentPrefix macro, resolved by LaTeX at compile time — a lone
-#    .tex file has no way to know which problem number it will end up
-#    being. Equation references, however, are emitted as bare
-#    \eqref{<n>} calls (n = this file's own per-\solution/\subsolution
-#    equation counter, exactly mirroring the real, live `equation`
-#    counter). This relies on \eqref itself being redefined (see the
-#    second snippet) to (a) prepend eq:\OlympCurrentPrefix. before
-#    resolving, and (b) fall back to printing the bare number in
-#    parentheses if that label is undefined — which is exactly what
-#    happens when this same marking.tex is compiled standalone in a
-#    type=marking document that never actually typesets the equations.
-#    A custom label=... given to \eq bypasses this shorthand entirely and
-#    is referenced with \OlympOldEqref{<label>} instead.
+# 2. Numbering: the task-number column (long format) used to embed the
+#    LIVE \OlympCurrentPrefix macro (\arabic{solnum}\printcounter{subsolnum})
+#    and let LaTeX resolve it at compile time -- this broke the moment a
+#    single marking_<lang>.tex table spans MULTIPLE \subsolution blocks
+#    (style=ipho, and any hand-authored style=respa file that doesn't
+#    split sub-parts into separate files): the table is only ever \input
+#    ONCE, after every \subsolution in the source has already run, so
+#    \OlympCurrentPrefix was frozen at whatever the LAST sub-part's letter
+#    was for EVERY row group, not the letter the row group actually
+#    belongs to (e.g. a 4-part problem's whole table showing "D.1", "D.2",
+#    ... "D.11" instead of "A.1" .. "D.2"). Fixed by freezing each task
+#    group's own label as plain text AT GENERATION TIME instead (see
+#    alpha_label() / the 'subsol' branch in parse_marking_body(), and
+#    build_rows()) -- \arabic{solnum} (the problem number) is dropped
+#    entirely rather than reconstructed, since a lone .tex file has no
+#    reliable way to know which problem number it will end up being
+#    either; only the sub-part letter is kept.
+#    Equation references are emitted as bare \eqref{<n>} calls (n = this
+#    file's own per-\solution/\subsolution equation counter, exactly
+#    mirroring the real, live `equation` counter). This relies on \eqref
+#    itself being redefined (see the second snippet) to (a) prepend
+#    eq:\OlympCurrentPrefix. before resolving, and (b) fall back to
+#    printing the bare number in parentheses if that label is undefined
+#    — which is exactly what happens when this same marking.tex is
+#    compiled standalone in a type=marking document that never actually
+#    typesets the equations. A custom label=... given to \eq bypasses
+#    this shorthand entirely and is referenced with
+#    \OlympOldEqref{<label>} instead.
 # 3. Kazakh strings in STRINGS['kz'] are best-effort placeholders (a few
 #    terms, e.g. "формула", are commonly left as loanwords) — please check
 #    them against whatever \OlympStringFallback already defines for
@@ -84,10 +100,24 @@
 #    $." / "Missing } inserted" depending on which \OlympJuryPick branch
 #    ends up active. See the \OlympJuryBeginTable comment in
 #    olympiad-marking.sty for the closely related bare-& note.
-# 6. \subsolution ("soljanka") handling mirrors extract-solution.py
-#    exactly: if any \subsolution{...} is present, only the *first* one is
-#    processed (extract-solution.py's own find/first_sub logic never
-#    looks past sub_matches[0] either).
+# 6. \subsolution ("soljanka") handling depends on style= (asked
+#    interactively -- see ask_style() / find_target_block()):
+#      style=respa: mirrors extract-solution.py exactly -- each
+#        \subsolution is normally its own separate file (T1A/T1B/T1C,
+#        one \subsolution per file), so if any \subsolution{...} is
+#        present, only the *first* one is processed (extract-solution.py's
+#        own find/first_sub logic never looks past sub_matches[0] either).
+#      style=ipho: \subproblem/\subsolution are inline sub-headers reused
+#        several times INSIDE one \solution block (e.g. Q.1..Q.5, all in
+#        the same file -- see any ijso_tst solution.tex), so there is
+#        nothing meaningful to stop at: the entire \solution body, up to
+#        end of file, is processed as one unit. Every \subsolution
+#        occurrence contributes no row of its own, but IS still recognised
+#        by parse_marking_body() as a task-group boundary (like \tasksol)
+#        so the long-format task-number column can label each group with
+#        the right sub-part letter -- see DESIGN NOTE 2 and alpha_label().
+#        This is the one place this script diverges from
+#        extract-solution.py, which has no style= concept of its own.
 #
 # ── Helpers copied from extract-solution.py (kept byte-identical) ────────
 
@@ -317,10 +347,27 @@ def classify_criterion_type(raw):
 
 # ── Body parser: walks \tasksol / eq / \criterion, builds task groups ────
 
-def parse_marking_body(body_text, lang):
+def alpha_label(n):
+    """1-based index -> A, B, ..., Z, AA, AB, ... -- mirrors olympiad.cls's
+    \\printcounter (int_to_Alph:n) so a task group's frozen label matches
+    what \\OlympCurrentPrefix would have printed for that sub-part, without
+    needing the live counter (see DESIGN NOTE 2)."""
+    s = ''
+    while n > 0:
+        n, r = divmod(n - 1, 26)
+        s = chr(65 + r) + s
+    return s
+
+
+def parse_marking_body(body_text, lang, initial_label=''):
     """Returns (tasks, calculated_total).
 
-    tasks: list of {'id': int, 'rows': [row, ...], 'subtotal': float}
+    tasks: list of {'id': int, 'label': str, 'rows': [row, ...], 'subtotal': float}
+    'label' is the frozen (already-resolved) sub-part letter for this task
+    group -- '' if the group isn't inside any \\subsolution (or style=respa
+    already resolved it to that \\subsolution's own label argument; see
+    find_target_block() / DESIGN NOTE 2). The group's printed prefix is
+    "{label}.{id}", e.g. "D.1" -- never "\\OlympCurrentPrefix.{id}".
     Each row is one of:
       {'kind': 'eq', 'type': 'common'|'alt', 'prefix': str, 'ref': str,
        'body': str, 'suffix': str, 'points_raw': str|None}
@@ -335,6 +382,8 @@ def parse_marking_body(body_text, lang):
     """
     tasks = []
     current_task_id = 1
+    current_label = initial_label
+    subsol_index = 0
     current_rows = []
     task_subtotal = 0.0
     calculated_total = 0.0
@@ -345,12 +394,14 @@ def parse_marking_body(body_text, lang):
         m_eq = re.search(r'\\begin\{eq\}', body_text[pos:])
         m_crit = re.search(r'\\criterion', body_text[pos:])
         m_task = re.search(r'\\tasksol\b', body_text[pos:])
+        m_subsol = re.search(r'\\subsolution\s*\{', body_text[pos:])
         m_pic = re.search(r'\\pic(?![a-zA-Z])', body_text[pos:])
         m_cpic = re.search(r'\\cpic(?![a-zA-Z])', body_text[pos:])
         m_cpics = re.search(r'\\cpics(?![a-zA-Z])', body_text[pos:])
 
         candidates = []
         for kind, m in (('eq', m_eq), ('crit', m_crit), ('task', m_task),
+                        ('subsol', m_subsol),
                         ('pic', m_pic), ('cpic', m_cpic), ('cpics', m_cpics)):
             if m:
                 candidates.append((kind, m.start() + pos, m.end() + pos))
@@ -360,13 +411,32 @@ def parse_marking_body(body_text, lang):
 
         if kind == 'task':
             if current_rows:
-                tasks.append({'id': current_task_id, 'rows': current_rows,
-                               'subtotal': round(task_subtotal, 3)})
+                tasks.append({'id': current_task_id, 'label': current_label,
+                               'rows': current_rows, 'subtotal': round(task_subtotal, 3)})
                 calculated_total += task_subtotal
                 current_task_id += 1
             current_rows = []
             task_subtotal = 0.0
             pos = end
+
+        elif kind == 'subsol':
+            # style=ipho only (style=respa's body never contains a
+            # \subsolution -- see find_target_block): a new \subsolution
+            # starts a new sub-part letter AND resets the task id, exactly
+            # like the real \setcounter{tasksolnum}{0} its own definition
+            # does. Its {title}{points} args are skipped, not read as a
+            # row -- the heading itself isn't part of the marking table.
+            if current_rows:
+                tasks.append({'id': current_task_id, 'label': current_label,
+                               'rows': current_rows, 'subtotal': round(task_subtotal, 3)})
+                calculated_total += task_subtotal
+            current_rows = []
+            task_subtotal = 0.0
+            subsol_index += 1
+            current_label = alpha_label(subsol_index)
+            current_task_id = 1
+            _, after_title = read_brace_arg(body_text, end)
+            _, pos = read_brace_arg(body_text, after_title)
 
         elif kind == 'eq':
             options_str, options_pos = read_optional_arg(body_text, end)
@@ -430,8 +500,8 @@ def parse_marking_body(body_text, lang):
             _, pos = parse_cpics(body_text, start + 6)
 
     if current_rows:
-        tasks.append({'id': current_task_id, 'rows': current_rows,
-                       'subtotal': round(task_subtotal, 3)})
+        tasks.append({'id': current_task_id, 'label': current_label,
+                       'rows': current_rows, 'subtotal': round(task_subtotal, 3)})
         calculated_total += task_subtotal
 
     return tasks, calculated_total
@@ -501,7 +571,8 @@ def build_rows(tasks, is_long, lang):
 
             if is_long:
                 if i == 0:
-                    base_cells.append(f"\\multirow{{{n}}}{{*}}{{\\textbf{{\\OlympCurrentPrefix.{task['id']}}}}}")
+                    prefix = f"{task['label']}.{task['id']}" if task['label'] else str(task['id'])
+                    base_cells.append(f"\\multirow{{{n}}}{{*}}{{\\textbf{{{prefix}}}}}")
                 else:
                     base_cells.append("")
 
@@ -689,45 +760,106 @@ def generate_marking_tex(tasks, total_points, is_long, lang):
     return "\n".join(out) + "\n"
 
 
-# ── \solution / \subsolution block selection (mirrors extract_solution) ──
+# ── \solution / \subsolution block selection ──────────────────────────────
+# style=respa mirrors extract_solution's first-\subsolution-only logic;
+# style=ipho always processes the whole \solution block. See DESIGN NOTE 6.
+#
+# Returns (title, points, body, initial_label). initial_label is the
+# task-group label parse_marking_body() should start with, BEFORE any
+# \subsolution boundary it finds itself (only style=ipho's whole-file body
+# ever contains one -- see DESIGN NOTE 2):
+#   - no \subsolution at all (plain \solution, or style=ipho before its
+#     first \subsolution): '' -- there's no sub-part letter to show.
+#   - style=respa WITH a \subsolution: that \subsolution's own label
+#     argument (e.g. "D"), frozen as plain text instead of reconstructing
+#     it from the live \arabic{solnum}\printcounter{subsolnum} pair --
+#     \arabic{solnum} is dropped entirely, not just deferred, since a lone
+#     .tex file has no reliable way to know its own problem number either.
 
-def find_target_block(content):
+def find_target_block(content, style):
+    if style == 'ipho':
+        # \subproblem/\subsolution are inline sub-headers reused several
+        # times inside ONE \solution block -- there's no sub-part boundary
+        # worth splitting on, so the whole body (to end of file) is
+        # returned as-is; parse_marking_body() discovers each \subsolution
+        # itself and assigns letters as it goes (starting from '' here).
+        sol_idx = content.find(r'\solution')
+        if sol_idx == -1:
+            print("Error: \\solution command not found.")
+            return None, None, None, None
+        b1_start = content.find('{', sol_idx)
+        title, b1_end = read_brace_arg(content, b1_start)
+        points_str, b2_end = read_brace_arg(content, b1_end)
+        body = content[b2_end:]
+        return title, try_float(points_str), body, ''
+
+    # style == 'respa'
     sub_matches = list(re.finditer(r'\\subsolution\s*\{', content))
 
     if not sub_matches:
         sol_idx = content.find(r'\solution')
         if sol_idx == -1:
             print("Error: Neither \\subsolution nor \\solution command found.")
-            return None, None, None
+            return None, None, None, None
         b1_start = content.find('{', sol_idx)
         title, b1_end = read_brace_arg(content, b1_start)
         points_str, b2_end = read_brace_arg(content, b1_end)
         body = content[b2_end:]
-        return title, try_float(points_str), body
+        return title, try_float(points_str), body, ''
     else:
         # Only the first \subsolution is processed, exactly like
-        # extract-solution.py's own sub_matches[0]-based logic.
+        # extract-solution.py's own sub_matches[0]-based logic. Its own
+        # label argument (title) IS the sub-part letter by convention (see
+        # olympiad-respa.sty's \subsolution doc comment: "Label — single
+        # letter or short label, e.g. 'А'"), so it doubles as initial_label.
         first_sub = sub_matches[0]
         title, after_title = read_brace_arg(content, first_sub.start() + len('\\subsolution'))
         points_str, body_start = read_brace_arg(content, after_title)
         body_end = sub_matches[1].start() if len(sub_matches) > 1 else len(content)
         body = content[body_start:body_end].strip()
-        return title, try_float(points_str), body
+        return title, try_float(points_str), body, title
+
+
+# ── style prompt ────────────────────────────────────────────────────────
+
+def ask_style():
+    print()
+    print("Which layout style was this solution.tex written for?")
+    print("This changes how \\subproblem/\\subsolution content is processed:")
+    print("  1) respa -- each \\subsolution is normally its own separate file")
+    print("     (one sub-part per file, e.g. T1A/T1B/T1C); only the FIRST")
+    print("     \\subsolution block found in this file is processed.")
+    print("  2) ipho  -- \\subproblem/\\subsolution are inline sub-headers reused")
+    print("     several times inside a SINGLE \\solution block (e.g. Q.1..Q.5,")
+    print("     all in one file); the ENTIRE file is processed as one unit.")
+    while True:
+        raw = input("Enter 1 for respa or 2 for ipho: ").strip().lower()
+        if raw in ('1', 'respa'):
+            return 'respa'
+        if raw in ('2', 'ipho'):
+            return 'ipho'
+        print("Please enter 1 (respa) or 2 (ipho).")
 
 
 # ── main ────────────────────────────────────────────────────────────────
 
 def main():
-    if len(sys.argv) not in (3, 4):
-        print("Usage: python extract-marking.py <file.tex> <out_dir> [ru|kz]")
+    if len(sys.argv) not in (3, 4, 5):
+        print("Usage: python extract-marking.py <solution.tex> <out_dir> [ru|kz] [respa|ipho]")
         sys.exit(1)
 
     tex_file = Path(sys.argv[1])
     out_dir = Path(sys.argv[2])
-    lang = sys.argv[3].strip().lower() if len(sys.argv) == 4 else 'ru'
+    lang = sys.argv[3].strip().lower() if len(sys.argv) >= 4 else 'ru'
     if lang not in ('ru', 'kz'):
         print(f"Warning: unrecognized language '{lang}'; defaulting to 'ru'.")
         lang = 'ru'
+
+    style = sys.argv[4].strip().lower() if len(sys.argv) == 5 else None
+    if style not in ('respa', 'ipho'):
+        if style is not None:
+            print(f"Warning: unrecognized style '{style}'; asking interactively instead.")
+        style = ask_style()
 
     if not tex_file.exists():
         print(f"Error: File '{tex_file}' not found.")
@@ -735,14 +867,14 @@ def main():
 
     content = tex_file.read_text(encoding='utf-8')
 
-    title, total_points, body = find_target_block(content)
+    title, total_points, body, initial_label = find_target_block(content, style)
     if body is None:
         sys.exit(1)
 
     tasksol_count = len(re.findall(r'\\tasksol\b', body))
     is_long = tasksol_count >= 2
 
-    tasks, calculated_total = parse_marking_body(body, lang)
+    tasks, calculated_total = parse_marking_body(body, lang, initial_label=initial_label)
 
     print(f"  -> Calculated total: {round(calculated_total, 3)} vs Header: {total_points}")
     try:
@@ -760,7 +892,7 @@ def main():
     with open(out_dir / out_name, 'w', encoding='utf-8') as f:
         f.write(tex_out)
 
-    print(f"Detected: language={lang}, {'long (subtasks)' if is_long else 'short'} format "
+    print(f"Detected: style={style}, language={lang}, {'long (subtasks)' if is_long else 'short'} format "
           f"({tasksol_count} \\tasksol occurrence(s)); type=solutions/marking is "
           f"resolved at LaTeX compile time via \\OlympJuryPick.")
     print(f"Successfully processed marking scheme into {out_dir}/{out_name}")

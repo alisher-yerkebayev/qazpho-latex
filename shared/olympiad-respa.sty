@@ -7,10 +7,6 @@
 % ============================================================
 % FONTS --- 12pt as defined by .cls
 % ============================================================
-% respa's whole look predates XeLaTeX: under pdfLaTeX it never chose a
-% font package at all, just whatever fontenc[T2A,T1]+babel-russian
-% defaulted to (Computer Modern for Latin glyphs, the separate "lh"
-% Cyrillic project's glyphs for Cyrillic).
 %
 % Ligatures=TeX is NOT optional: this repo's problem/solution prose
 % relies on classic TeX ligatures (---  for em-dash, `` / '' for curly
@@ -25,7 +21,6 @@
 % mix with an OpenType text font -- CMU Serif and Computer Modern
 % share the same metric/design lineage, so there's no italic-
 % correction or weight mismatch between text and math.
-
 
 % ============================================================
 % PAGE GEOMETRY
@@ -457,7 +452,7 @@
   \begin{framed}\noindent
   \begin{minipage}[t][#1][t]{\linewidth}
   \noindent\textbf{\OlympCurrentPrefix.\arabic{tasknum}}%
-  \IfValueT{#2}{\ifOlympShowPoints \textbf{(#2~\OlympString{points_answersheet})}\fi}%
+  \IfValueT{#2}{\ifOlympShowPoints ~\textbf{(#2~\OlympString{points_answersheet})}\fi}%
   \par\bigskip
 }{%
   \end{minipage}\end{framed}

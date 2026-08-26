@@ -234,13 +234,15 @@
 
 \ExplSyntaxOff
 
-\RequirePackage{siunitx}         % loaded first — owns the S column
-\RequirePackage{physics2}
-\usephysicsmodule{ab}
+\RequirePackage{siunitx}        % loaded first — owns the S column
+\RequirePackage{physics2}       \usephysicsmodule{ab}
+\RequirePackage{derivative}
+\RequirePackage[version=4]{mhchem}
 
 \RequirePackage{xparse}
 \RequirePackage{etoolbox}
 \RequirePackage{caption}
+\RequirePackage{comment}
 
 % ============================================================
 % \OlympLang AND THE STRING SLOT SYSTEM

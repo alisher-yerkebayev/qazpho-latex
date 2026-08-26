@@ -83,7 +83,6 @@
 % ============================================================
 
 \setlist[itemize]{topsep=0pt, noitemsep}
-\setlist[itemize,1]{label={\tiny\textbullet}}
 \setlist[enumerate]{topsep=0pt, leftmargin=38pt, noitemsep}
 \setlist[enumerate,1]{label=\arabic*)}
 
@@ -138,7 +137,7 @@
               \parbox{.1\textwidth}{
                 \hspace{1em}
                 \tl_if_empty:NF \l__olymp_task_points_tl
-                  { \l__olymp_task_points_tl }
+                  { \l__olymp_task_points_tl \nobreakspace pt }
               }
               \end{framed}
             }
@@ -245,6 +244,7 @@
 \newcommand{\solution}[2]{%
   % #1 = title, #2 = points string
   \stepcounter{solnum}%
+  \setcounter{tasknum}{0}%
   \setcounter{tasksolnum}{0}%
   \setcounter{equation}{0}%
   \stepcounter{blocknum}%
@@ -258,6 +258,7 @@
 
 \newcommand{\subproblem}[2]{%
   % #1 = label (e.g. А), #2 = points string
+  \setcounter{tasknum}{0}%
   \stepcounter{subproblemnum}%
   \vspace{6pt}\par\noindent%
     { \hspace*{-3pt}\fontsize{10pt}{10pt}%
@@ -272,6 +273,7 @@
 \newcommand{\subsolution}[2]{%
   % #1 = label (e.g. А), #2 = points string
   \stepcounter{subsolnum}%
+  \setcounter{tasknum}{0}%
   \setcounter{tasksolnum}{0}%
   \par%
   \vspace{6pt}\noindent%
@@ -331,7 +333,7 @@
     \textbf{\\\vfill \fontsize{.5cm}{.5cm} \selectfont%
     \ifOlympTheory\OlympString{theory}\fi%
     \ifOlympExperiment\OlympString{experiment}\fi%
-    } \\ \includegraphics[height=2cm]{example-image}
+    } \\ \includegraphics[height=2cm]{\OlympString{logo}} % must be defined in strings-config.tex
   }%
 }
 
@@ -343,7 +345,8 @@
     \textbf{\\\vfill \fontsize{.5cm}{.5cm} \selectfont%
     \ifOlympTheory\OlympString{theory}\fi%
     \ifOlympExperiment\OlympString{experiment}\fi%
-    } \\ \includegraphics[height=2cm]{example-image}
+    /\OlympString{solutions}
+    } \\ \includegraphics[height=2cm]{\OlympString{logo}} % must be defined in strings-config.tex
   }%
 }
 
@@ -356,7 +359,7 @@
     \ifOlympTheory\OlympString{theory}\fi%
     \ifOlympExperiment\OlympString{experiment}\fi%
     /\OlympString{marking_schemes}
-    } \\ \includegraphics[height=2cm]{example-image}
+    } \\ \includegraphics[height=2cm]{\OlympString{logo}} % must be defined in strings-config.tex
   }%
 }
 
@@ -369,7 +372,7 @@
     \ifOlympTheory\OlympString{theory}\fi%
     \ifOlympExperiment\OlympString{experiment}\fi%
     /\OlympString{answersheets}
-    } \\ \includegraphics[height=2cm]{example-image}
+    } \\ \includegraphics[height=2cm]{\OlympString{logo}} % must be defined in strings-config.tex
   }%
 }
 
@@ -420,6 +423,7 @@
 
 \makeatletter
 \newcommand{\answersheetsheader}{
+  \setcounter{problemnum}{0}
   \renewcommand{\letter@header}{A}
   \pagestyle{problems}
 }
@@ -443,8 +447,10 @@
   \stepcounter{tasknum}%
   \begin{framed}\noindent
   \begin{minipage}[t][#1][t]{\linewidth}
-  \noindent\textbf{\printcounter{subproblemnum}.\arabic{tasknum}}%
-  \IfValueT{#2}{\ifOlympShowPoints (#2\nobreakspace pt)\fi}%
+  \noindent\textbf{\printcounter{subproblemnum}\printcounter{subsolnum}.\arabic{tasknum}}%
+  % They are not supposed to be together, but due to how \printcounter works,
+  % it will always be EITHER subproblemnum OR subsolnum
+  \IfValueT{#2}{\ifOlympShowPoints ~(#2\nobreakspace pt)\fi}%
   \par\bigskip
 }{%
   \end{minipage}\end{framed}
@@ -457,7 +463,7 @@
   \begin{framed}\noindent
   \begin{minipage}[t][#1][t]{\linewidth}
   \noindent\textbf{\OlympCurrentPrefix}%
-  \IfValueT{#2}{\ifOlympShowPoints (#2)\fi}%
+  \IfValueT{#2}{\ifOlympShowPoints ~(#2)\fi}%
   \par\bigskip
 }{%
   \end{minipage}\end{framed}

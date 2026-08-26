@@ -266,7 +266,7 @@ def _tier2_problemcount_instructions(family: str, cfg: dict, stage: str) -> str:
     tours = cfg.get("tours", {})
     theory_n = _resolve_per_stage(tours.get("theory", {}).get("problem_count"), stage)
     exp_n = _resolve_per_stage(tours.get("experiment", {}).get("problem_count"), stage)
-    lines = ["\\SetOlympString{problemcount_instructions}", "{", "    \\ifOlympTheory%"]
+    lines = ["\\SetOlympString{problemcount_instructions}", "{%", "    \\ifOlympTheory%"]
     if theory_n:
         lines.append(f"        \\ifOlympLangRu {_ru_problemcount_phrase(theory_n, 'theory')}\\fi%")
         lines.append(f"        \\ifOlympLangKz {_kz_problemcount_phrase(theory_n, 'theory')}\\fi%")

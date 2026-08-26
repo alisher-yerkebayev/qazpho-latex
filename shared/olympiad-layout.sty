@@ -258,7 +258,7 @@
 % ============================================================
 
 \newcommand{\figref}[1]
-{
+{%
   \ifOlympProblems%
   \arabic{problemnum}\printcounter{subproblemnum}.\ref{fig:\OlympCurrentPrefix.#1}%
   \fi%
@@ -288,6 +288,7 @@
 % ===============================================================
 
 \RequirePackage{framed}
+\RequirePackage[framemethod=default]{mdframed}
 \RequirePackage{multicol} \setlength{\multicolsep}{0pt} % for answer sheets
 
 \newlength{\OlympAnswerGap}
