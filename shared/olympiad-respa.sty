@@ -1,6 +1,5 @@
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesPackage{olympiad-respa}[2027/01/01 Respa-style olympiad-layout extension]
-\RequirePackage{olympiad-layout}
 
 \OlympLayoutMatchedtrue
 
@@ -186,7 +185,7 @@
   \vspace{6pt}%
   \hspace*{18pt}%
   \stepcounter{tasksolnum}%
-  \textbf{\thesolnum.\thetasksolnum}~%
+  \textbf{\thesolnum\printcounter{subsolnum}.(\alph{tasksolnum})}~%
 }
 
 \newcommand{\taskref}[1]{\textbf{\theproblemnum.#1}}
@@ -458,13 +457,14 @@
   \end{minipage}\end{framed}
 }
 
-\NewDocumentEnvironment{answerboxpart}{ m o }{%
-  % #1 = height, #2 = optional points
+\NewDocumentEnvironment{answerboxpart}{ m o o }{%
+  % #1 = height, #2 = part, #3 = optional points
   \setcounter{tasknum}{0}%
   \begin{framed}\noindent
   \begin{minipage}[t][#1][t]{\linewidth}
   \noindent\textbf{\OlympCurrentPrefix}%
-  \IfValueT{#2}{\ifOlympShowPoints \textbf{(#2~\OlympString{points_answersheet})}\fi}%
+  \IfValueT{#2}{\textbf{.#2}}
+  \IfValueT{#3}{\ifOlympShowPoints \textbf{(#3~\OlympString{points_answersheet})}\fi}%
   \par\bigskip
 }{%
   \end{minipage}\end{framed}

@@ -1,0 +1,95 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{olympiad-izho}
+
+\OlympLayoutMatchedtrue
+
+\RequirePackage{olympiad-respa}
+
+% ============================================================
+% PAGE GEOMETRY -- Redefined from Respa
+% ============================================================
+
+\geometry{
+    a4paper,
+    left=15mm,
+    right=15mm,
+    top=20mm,
+    bottom=15mm,
+    %headheight  = 12pt,
+    %headsep     = 15pt,
+    %footskip    = 30pt,
+    includehead = false,
+}
+
+% ============================================================
+% HEADERS AND FOOTERS -- Redefined from Respa
+% ============================================================
+
+\renewcommand{\problemsheader}{%
+  \setcounter{page}{1}
+  \thispagestyle{firstpage}%
+}
+
+% 1. "problems" Style --- the only difference is deleted \OlympYear and fancyfoot
+\fancypagestyle{problems}{%
+  \fancyhf{}% Clear all headers and footers
+  \OlympCommonRightHead%
+  \fancyhead[L]{%
+    \textbf{\OlympString{name}/\OlympString{tourname}}%
+  }%
+}
+
+% 2. "solutions" Style
+\fancypagestyle{solutions}{%
+  \fancyhf{}% Clear all headers and footers
+  \OlympCommonRightHead%
+  \fancyhead[L]{%
+    \textbf{\OlympString{name}/\OlympString{tourname}/\OlympString{solutions}}%
+  }%
+}
+
+% 3. "marking" Style
+\fancypagestyle{marking}{%
+  \fancyhf{}% Clear all headers and footers
+  \OlympCommonRightHead%
+  \fancyhead[L]{%
+    \textbf{\OlympString{name}/\OlympString{tourname}/\OlympString{marking_schemes}}%
+  }%
+}
+
+% 4. "answersheets" Style
+\fancypagestyle{answersheets}{%
+  \fancyhf{}% Clear all headers and footers
+  \OlympCommonRightHead%
+  \fancyhead[L]{%
+    \textbf{\OlympString{name}/\OlympString{tourname}/\OlympString{answersheets}}%
+  }%
+}
+
+\makeatletter
+\fancypagestyle{firstpage}{%
+    \fancyhf{}
+    \ps@problems % Inherit everything from the 'problems' style
+  }
+\makeatother
+
+% ==========================================
+% Initial State Activation
+% ==========================================
+\ifOlympJury
+  \pagestyle{empty}
+\else
+  \ifOlympSolutions
+    \pagestyle{solutions}
+  \else
+    \ifOlympMarking
+      \pagestyle{marking}
+    \else
+      \pagestyle{problems}
+    \fi
+  \fi
+\fi
+
+\AtBeginDocument{% overwrites the olympiad-units-base.sty per-mode
+  \sisetup{per-mode = symbol}%
+}

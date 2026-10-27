@@ -59,7 +59,8 @@
 
 % Style booleans: one per supported VISUAL layout style.
 \bool_new:N \g__olymp_style_respa_bool
-\bool_new:N \g__olymp_style_ipho_bool % new boolean v1.5-> v1.6
+\bool_new:N \g__olymp_style_ipho_bool
+\bool_new:N \g__olymp_style_izho_bool
 
 % ---- set the documented defaults: language=ru, tour=theory,      ----
 % ---- grade=11, type=problems, style=respa, font=12pt, year=2026  ----
@@ -163,16 +164,23 @@
           {respa} {
             \bool_gset_true:N  \g__olymp_style_respa_bool
             \bool_gset_false:N \g__olymp_style_ipho_bool
+            \bool_gset_false:N  \g__olymp_style_izho_bool
           }
           {ipho} {
             \bool_gset_false:N \g__olymp_style_respa_bool
             \bool_gset_true:N  \g__olymp_style_ipho_bool
+            \bool_gset_false:N  \g__olymp_style_izho_bool
+          }
+          {izho} {
+            \bool_gset_false:N \g__olymp_style_respa_bool
+            \bool_gset_false:N \g__olymp_style_ipho_bool
+            \bool_gset_true:N  \g__olymp_style_izho_bool
           }
         }
         {
           \ClassError{olympiad}
             { Unknown~value~`#1'~for~key~`style' }
-            { Use~style=respa/ipho~(more~styles~can~be~added~here~as~olympiad-layout.sty~grows~support~for~them). }
+            { Use~style=respa/ipho/izho~(more~styles~can~be~added~here~as~olympiad-layout.sty~grows~support~for~them). }
         }
     } ,
   }
@@ -222,9 +230,12 @@
 \bool_if:NTF \g__olymp_style_respa_bool { \OlympStyleRespatrue } { \OlympStyleRespafalse }
 \newif\ifOlympStyleIpho
 \bool_if:NTF \g__olymp_style_ipho_bool { \OlympStyleIphotrue } { \OlympStyleIphofalse }
+\newif\ifOlympStyleIzho
+\bool_if:NTF \g__olymp_style_izho_bool { \OlympStyleIzhotrue } { \OlympStyleIzhofalse }
 
 \ifOlympStyleRespa \tl_gset:Nn \g__olymp_font_tl {12pt} \fi
 \ifOlympStyleIpho \tl_gset:Nn \g__olymp_font_tl {9pt} \fi
+\ifOlympStyleIzho \tl_gset:Nn \g__olymp_font_tl {11pt} \fi
 
 % \OlympGrade — plain integer macro, usable in headers and \edef
 \edef\OlympGrade { \int_use:N \g__olymp_grade_int }

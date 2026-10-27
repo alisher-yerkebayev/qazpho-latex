@@ -389,19 +389,23 @@
 %
 % ====================================================
 
-\ifOlympStyleRespa
-\RequirePackage{olympiad-respa}
-\fi
-
-\ifOlympStyleIpho
-\RequirePackage{olympiad-ipho}
-\fi
+\ifOlympStyleRespa%
+\RequirePackage{olympiad-respa}%
+\fi%
+%
+\ifOlympStyleIpho%
+\RequirePackage{olympiad-ipho}%
+\fi%
+%
+\ifOlympStyleIzho%
+\RequirePackage{olympiad-izho}%
+\fi%
 
 \ifOlympLayoutMatched\else
   \PackageWarning{olympiad-layout}
     { No~layout~is~defined~in~this~package~for~the~active~style~--~
       check~olympiad.cls's~style=...~option;~olympiad-layout.sty~
-      currently~only~implements~style=respa/ipho }
+      currently~only~implements~style=respa/ipho/izho }
 \fi
 
 \endinput

@@ -84,7 +84,7 @@
 \newcommand{\juryheader}{%
 \ifOlympTheory%
 \stepcounter{solnum}%
-\hspace{12pt}\textbf{\OlympGrade{} \OlympString{grade_text}. \OlympString{problem}~\thesolnum. \OlympString{marking_jury}: \underline{\hspace{4.5cm}}. \OlympString{marking_cipher}: \underline{\hspace{4.5cm}}}%
+\hspace{12pt}\textbf{\ifOlympStyleRespa\OlympGrade{} \OlympString{grade_text}. \fi\OlympString{problem}~\thesolnum. \OlympString{marking_jury}: \underline{\hspace{4.5cm}}. \OlympString{marking_cipher}: \underline{\hspace{4.5cm}}}%
 \fi\ifOlympExperiment%
 \hspace{12pt}\textbf{\OlympGrade{} \OlympString{grade_text}. Эксперимент. \OlympString{marking_jury}: \underline{\hspace{4.5cm}}. \OlympString{marking_cipher}: \underline{\hspace{4.5cm}}}%
 \fi%
